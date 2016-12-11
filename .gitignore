@@ -1,0 +1,11 @@
+# Elm package dependencies + build artifacts
+elm-stuff
+
+# Compiled Elm
+assets/js/elm.js
+
+# Compiled Sass + artifacts
+.sass-cache
+assets/css/main.css
+assets/css/main.css.map
+

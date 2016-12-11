@@ -1,0 +1,544 @@
+@import "mixins";
+
+$font-size: 18px;
+$font-family: Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif;
+$line-height: 1.5;
+
+$font-weight-normal: 400;
+$font-weight-bold: 500;
+$font-weight-bolder: 700;
+
+$font-size-h1: 1.05em;
+$font-size-h2: 2.6em;
+$font-size-h3: 1.75em;
+$font-size-h4: 1.4em;
+
+$font-size-large: 1.5em;
+$font-size-larger: 2em;
+
+$color-background: #eeeff1;
+$color-background-darker: darken($color-background, 7.5%);
+$color-text: #121b21;
+$color-text-lighter: #999; 
+$color-link: #ff5252;
+$color-link-hover: darken($color-link, 15%);
+$color-contrast: #61c192;
+$color-border: #dbdbdb;
+
+$height-footer: 3.5em;
+$height-footer-padding: 2.5em;
+
+// This extra wrapper div is required by Elm. In order
+// for our sticky footer CSS to work, the Elm wrapper
+// has to be set to 100% height.
+#elm-container {
+    height: 100%;
+}
+
+@include selection {
+    color: white;
+    background-color: $color-contrast;
+}
+
+@include sticky-footer(".content-wrapper", $height-footer + $height-footer-padding);
+
+body {
+    color: $color-text;
+    background-color: $color-background;
+    font-size: $font-size;
+    font-family: $font-family;
+    line-height: $line-height;
+}
+
+h1 {
+    font-size: $font-size-h1;
+    font-weight: $font-weight-normal;
+    text-transform: uppercase;
+
+    i {
+        padding-right: 6px;
+    }
+}
+
+h2, h3, h4 {
+    line-height: 1.2;
+}
+
+h3, h4 {
+    font-weight: $font-weight-normal;
+}
+
+h2 {
+    font-size: $font-size-h2;
+    font-weight: $font-weight-bold;
+}
+
+h3 {
+    font-size: $font-size-h3;
+}
+
+h4 {
+    font-size: $font-size-h4;
+}
+
+.large {
+    font-size: $font-size-large;
+}
+
+.larger {
+    font-size: $font-size-larger;
+}
+
+.subbed {
+    margin-bottom: 0;
+}
+
+.highlight {
+    color: $color-contrast;
+    font-weight: $font-weight-bolder;
+}
+
+a:link, a:visited {
+    color: $color-link;
+    text-decoration: none;
+    transition: color .25s;
+}
+
+a:hover, a:active {
+    color: $color-link-hover;
+}
+
+.button {
+    padding: .75em 1.5em;
+    border-radius: 4px;
+
+    &:link, &:visited {
+        color: white;
+        background-color: $color-link;
+        transition: background-color .25s;
+    }
+
+    &:hover, &:active {
+        background-color: $color-link-hover;
+    }
+}
+
+.petition-list {
+    line-height: 1.75;
+}
+
+header, footer, .main {
+    padding: 0 2em;
+}
+
+.main {
+    margin: 5em 0;
+}
+
+.page {
+    max-width: 68em;
+    margin: 0 auto;
+}
+
+.menu, .nav {
+    margin: 0;
+    padding-left: 0;
+
+    li {
+        display: inline-block;
+    }
+}
+
+footer {
+    color: $color-text-lighter;
+    text-align: center;
+    height: $height-footer;
+    padding-top: $height-footer-padding;
+
+    a:link, a:visited {
+        color: inherit;
+        font-weight: $font-weight-bold;
+    }
+
+    a:hover, a:active {
+        text-decoration: underline;
+    }
+}
+
+header {
+    $height: 4em;
+
+    height: $height;
+    line-height: $height;
+    background-color: white;
+    margin-bottom: 5em;
+    border-bottom: 1px solid $color-border;
+    // Header rolls up when the loading screen is shown.
+    transition: height .25s;
+    // Hide text when the header rolls down again.
+    overflow: hidden;
+
+    h1 {
+        margin: 0;
+        float: left;
+
+        .icon-portcullis {
+            float: left;
+            font-size: 1.65em;
+        }
+    }
+
+    .menu {
+        float: right;
+        font-size: .9em;
+        font-weight: $font-weight-bold;
+        text-transform: uppercase;
+
+        li {
+            padding-left: 2em;
+        }
+    }
+}
+
+.titles {
+    margin-bottom: 3em;
+    border-bottom: 2px solid;
+    
+    h2 {
+        margin: .75em 0;
+    }
+
+    .nav {
+        font-size: 1.15em;
+        margin-top: -.2em;
+
+        li {
+            padding-right: 2em;
+        }
+
+        a {
+            display: inline-block;
+            padding-bottom: 1.5em;
+            border-bottom: 2px solid transparent;
+
+            &:link, &:visited {
+                color: inherit;
+            }
+            
+            &:hover, &:active, &.selected {
+                border-color: initial;
+            }
+        }
+    }
+}
+
+// Home page
+
+.intro {
+    max-width: 30em;
+}
+
+.textbox {
+    $color: #655;
+    $height: 3em;
+    $button-width: 4em;
+    $left-padding: 1.5em;
+    $max-width: 30em;
+
+    font-size: 1.15em;
+    width: 100%;
+    max-width: $max-width;
+    height: $height;
+    line-height: $height;
+    color: $color;
+    background: white;
+    border: 3px solid $color-border;
+    border-radius: 2em;
+    // For positioning the button.
+    position: relative;
+    // Hide square corners of input field and button.
+    overflow: hidden;
+
+    input, button {
+        outline: 0;
+        padding: 0;
+        border: none;
+        height: 100%;
+        color: inherit;
+        background: inherit;
+    }
+
+    input {
+        width: 100%;
+        // Include padding in the width. 
+        box-sizing: border-box;
+        padding-left: $left-padding;
+        padding-right: $button-width;
+
+        @include input-placeholder {
+            opacity: .5;
+            color: inherit;
+        }
+    }
+
+    button {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: $button-width;
+        cursor: pointer;
+
+        i {
+            color: $color-link;
+            font-size: 1.25em;
+            transition: opacity .25s;
+        }
+
+        &:disabled i {
+            opacity: .5;
+            color: inherit;
+        }
+    }
+}
+
+.mru {
+    padding-top: 2em;
+
+    h4 {
+        margin-bottom: 0;
+    }
+}
+
+// Loading page
+
+.loading {
+    text-align: center;
+
+    header {
+        height: 0;
+        margin-bottom: 6em;
+    }
+
+    .message {
+        margin: 0;
+        font-size: 1.8em;
+        font-weight: $font-weight-bold;
+    }
+}
+
+// Petition Summary page
+
+.pie {
+    @include pie($color-background-darker, $color-contrast, 8.5%, $color-background);
+}
+
+.percentages {
+    $text-width: 50%;
+    $pie-chart-diameter: 42%;
+
+    @include clearfix;
+    margin-top: 4em;
+    margin-bottom: 3em;
+    // Extra padding at the bottom to make room for
+    // the signature counts (absolutely positioned
+    // under the pie charts).
+    padding-bottom: 2em;
+
+    p, ul {
+        float: right;
+    }
+
+    p {
+        width: $text-width;
+        margin-top: 1.25em;
+    }
+
+    ul {
+        margin: 0;
+        padding-left: 0;
+        width: 100% - $text-width;
+    }
+
+    li {
+        // Percentage width and percentage padding are both
+        // relative to the width of the parent container.
+        // Setting top padding equal to the width is an easy
+        // way to maintain equal width and height with a flexible
+        // layout.
+        width: $pie-chart-diameter;
+        padding-top: $pie-chart-diameter;
+        text-align: center;
+        display: inline-block;
+
+        &:first-child {
+            margin-right: 50% - $pie-chart-diameter;
+        }
+    }
+
+    .percent, .label, .count {
+        z-index: 1;
+        position: absolute;
+        left: 0;
+        width: 100%;
+    }
+
+    .percent {
+        bottom: 50%;
+        font-size: 2em;
+        font-weight: $font-weight-bold;
+    }
+
+    .label {
+        top: 50%;
+        font-size: 1.5em;
+    }
+
+    .count {
+        top: 100%;
+        padding-top: 1em;
+        font-size: 1.25em;
+    }
+
+    .brackets {
+        display: none;
+    }
+}
+
+.radio {
+    cursor: pointer;
+    margin-left: .75em;
+
+    span {
+        background: $color-background-darker;
+        padding: .6em 1em;
+        border-radius: 4px;
+        transition: color .25s, background-color .25s;
+    }
+
+    span:hover, :checked + span {
+        color: white;
+        background: $color-contrast;
+    }
+
+    input {
+        display: none;
+    }
+}
+
+.bar {
+    table-layout: fixed;
+    padding-right: 5em;
+    width: 100%;
+    line-height: 2.25;
+    border-spacing: 8px;
+
+    .label {
+        width: 14%;
+        padding-right: 1%;
+        text-align: right;
+        // Along with the width, the following styles force
+        // text to one line and truncates it with ellipses
+        // when too wide for the container.
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .value {
+        span {
+            min-width: 2px;
+            background: $color-contrast;
+            transition: width .25s, text-indent .25s;
+        }
+    }
+}
+
+.bar-header {
+    $line-height: 8em;
+
+    line-height: $line-height;
+    margin-top: 2.5em;
+
+    h3 {
+        float: left;
+        margin: 0;
+        line-height: $line-height / $font-size-h3;
+    }
+
+    .options {
+        float: right;
+    }
+}
+
+// Petition Detail page
+
+.meta {
+    float: left;
+    margin: 0;
+    padding-left: 0;
+    padding-top: .25em;
+    text-align: right;
+    width: 15em;
+
+    dt {
+        font-size: .9em;
+        line-height: 1;
+        color: $color-text-lighter;
+    }
+
+    dd {
+        margin-left: 0;
+        margin-bottom: 1em;
+    }
+}
+
+.description {
+    padding-left: 20em;
+
+    p {
+        font-size: 1.1em;
+        max-width: 36em;
+    }
+
+    .button {
+        display: inline-block;
+        margin: .5em 0;
+    }
+}
+
+// Petition Country/Constituency pages
+
+.tabular {
+    width: 100%;
+    line-height: 3em;
+    margin: 3em 0;
+    border-collapse: collapse;
+
+    thead, tbody {
+        border-bottom: 1px solid $color-border;
+    }
+
+    th {
+        text-align: inherit;
+        font-weight: $font-weight-bold;
+
+        a:link, a:visited {
+            color: inherit;
+        }
+    }
+
+    tbody tr:nth-child(odd) {
+        background-color: rgba(black, .035);
+    }
+
+}
+
+.countrydata, .constituencydata {
+
+    table-layout: fixed;
+
+    td:first-child, th:first-child {
+        padding-left: 1em;
+    }
+}
+

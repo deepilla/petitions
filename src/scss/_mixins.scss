@@ -1,0 +1,119 @@
+
+// Selected text.
+// See https://developer.mozilla.org/en-US/docs/Web/CSS/::selection
+@mixin selection {
+
+    // Gecko browsers
+    ::-moz-selection {
+        @content;
+    }
+
+    // Non-Gecko browsers
+    ::selection {
+        @content;
+    } 
+}
+
+// Style input placeholders cross-browser.
+// See https://css-tricks.com/almanac/selectors/p/placeholder/
+@mixin input-placeholder {
+
+    // Chrome/Opera/Safari
+    &::-webkit-input-placeholder {
+        @content;
+    }
+
+    // Firefox 18-
+    &:-moz-placeholder {
+        @content;
+    }
+
+     // Firefox 19+
+    &::-moz-placeholder {
+        @content;
+    }
+
+    // IE 10+
+    &:-ms-input-placeholder {
+        @content;
+    }
+}
+
+// Clearfix.
+// See https://css-tricks.com/snippets/css/clear-fix/
+@mixin clearfix {
+    &:after {
+        content: "";
+        display: table;
+        clear: both;
+    }
+}
+
+// Sticky footers.
+// See https://css-tricks.com/snippets/css/sticky-footer/
+@mixin sticky-footer($selector, $height) {
+    html, body {
+        height: 100%;
+    }
+
+    #{$selector} {
+        min-height: 100%;
+        margin-bottom: 0 - $height;
+
+        &:after {
+            content: "";
+            display: block;
+            height: $height;
+        }
+    }
+}
+
+// Two colour pie charts with optional inner ring.
+// See https://www.smashingmagazine.com/2015/07/designing-simple-pie-charts-with-css/
+@mixin pie($pie-color: lightblue, $wedge-color: burlywood, $ring-thickness: 8.5%, $inner-color: whitesmoke) {
+
+    border-radius: 50%;
+    // For absolute positioning of the pseudo elements.
+    position: relative;
+    background: $pie-color;
+    background-image: linear-gradient(to right, transparent 50%, $wedge-color 0);
+
+    &::before {
+        content: "";
+        display: block;
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 50%;
+        height: 100%;
+
+        background-color: inherit;
+        transform-origin: left;
+        border-radius: 0 100% 100% 0 / 50%;
+    }
+
+    @if ($ring-thickness) {
+        &::after {
+            content: "";
+            position: absolute;
+            top: $ring-thickness;
+            bottom: $ring-thickness;
+            left: $ring-thickness;
+            right: $ring-thickness;
+            border-radius: 50%;
+            background-color: $inner-color;
+        }
+    }
+
+    @at-root %pie51to100 {
+        background-color: $wedge-color;
+    }
+
+    @for $i from 1 through 50 {
+        @at-root .pie#{$i}::before, .pie#{($i+50)}::before { transform: rotate($i * 3.6deg); }
+    }
+
+    @for $i from 51 through 100 {
+        @at-root .pie#{$i}::before { @extend %pie51to100; }
+    }
+}

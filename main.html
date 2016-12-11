@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>UK Petition Viewer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="shortcut icon" href="assets/img/logo.png">
+<link href="assets/css/normalize.css" rel="stylesheet" type="text/css">
+<link href="assets/css/main.css" rel="stylesheet" type="text/css">
+<link href="assets/css/fontello.css" rel="stylesheet" type="text/css">
+<link href="https://fonts.googleapis.com/css?family=Roboto:400,500,700" rel="stylesheet">
+</head>
+<body>
+</body>
+<script src="assets/js/elm.js"></script>
+<script>
+    (function() {
+        var elm = Elm.Main.fullscreen({
+            id: null,
+            logging: true,
+        });
+
+        // Feature detect localStorage and only connect the
+        // Elm ports if localStorage is available.
+        // See https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API/Using_the_Web_Storage_API 
+        function localStorageAvailable() {
+            try {
+                var x = '__storage_test__';
+                var storage = window['localStorage'];
+
+                storage.setItem(x, x);
+                storage.removeItem(x);
+                return true;
+            }
+            catch(e) {
+                return false;
+            }
+        }
+
+        if (localStorageAvailable()) {
+            elm.ports.getLocalStorage.subscribe(function(key) {
+                var value = localStorage.getItem(key) || null;
+                // Note the fake callback to send data back to Elm.
+                // This works around a bug whereby Elm ports cannot
+                // receive data from JavaScript on app initialisation.
+                // See https://github.com/elm-lang/core/issues/582
+                // and https://github.com/elm-lang/core/issues/595
+                // for more info.
+                window.setTimeout(function() {
+                    elm.ports.onLocalStorage.send([key, value]);
+                }, 0);
+            });
+
+            elm.ports.setLocalStorage.subscribe(function(keyValue) {
+                localStorage.setItem(keyValue[0], keyValue[1]);
+            });
+        }
+    }());
+</script>
+</html>

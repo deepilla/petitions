@@ -9,7 +9,7 @@ module PetitionList exposing
     )
 
 
-import Json.Decode exposing ((:=))
+import Json.Decode
 import Json.Encode
 
 
@@ -30,9 +30,9 @@ maxLength =
 
 itemDecoder : Json.Decode.Decoder Item
 itemDecoder =
-    Json.Decode.object2 Item
-        ("url" := Json.Decode.string)
-        ("title" := Json.Decode.string)
+    Json.Decode.map2 Item
+        (Json.Decode.field "url" Json.Decode.string)
+        (Json.Decode.field "title" Json.Decode.string)
 
 
 itemEncoder : Item -> Json.Encode.Value

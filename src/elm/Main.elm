@@ -6,14 +6,13 @@ import Char
 import Date exposing (Date)
 import Dict exposing (Dict)
 import Html exposing (Html)
-import Html.App
 import Html.Attributes as Attributes
 import Html.Events as Events
 import Http
-import Json.Decode as Json exposing ((:=))
+import Json.Decode as Json
 import Random
 import String
-import Task exposing (Task)
+import Tuple
 
 import Constituencies
 import Country
@@ -78,14 +77,14 @@ type alias Country =
 
 countryDecoder : Json.Decoder Country
 countryDecoder =
-    Json.object5 Country
-        ("name" := Json.string)
-        ("code" := Json.string)
-        ("signature_count" := Json.int)
+    Json.map5 Country
+        (Json.field "name" Json.string)
+        (Json.field "code" Json.string)
+        (Json.field "signature_count" Json.int)
         -- Look up UK membership using the country code.
-        ("code" := Json.map Country.isUK Json.string)
+        (Json.field "code" (Json.map Country.isUK Json.string))
         -- Look up EU membership using the country code.
-        ("code" := Json.map Country.isEU Json.string)
+        (Json.field "code" (Json.map Country.isEU Json.string))
 
 
 type alias Constituency =
@@ -100,13 +99,13 @@ type alias Constituency =
 
 constituencyDecoder : Json.Decoder Constituency
 constituencyDecoder =
-    Json.object5 Constituency
-        ("name" := Json.string)
-        ("ons_code" := Json.string)
-        ("mp" := nullToMaybeDecoder Json.string)
-        ("signature_count" := Json.int)
+    Json.map5 Constituency
+        (Json.field "name" Json.string)
+        (Json.field "ons_code" Json.string)
+        (Json.field "mp" (Json.nullable Json.string))
+        (Json.field "signature_count" Json.int)
         -- Look up constituency info using the ONS code.
-        ("ons_code" := Json.map Constituencies.get Json.string)
+        (Json.field "ons_code" (Json.map Constituencies.get Json.string))
 
 
 type alias Petition =
@@ -126,23 +125,23 @@ type alias Petition =
 petitionDecoder : Json.Decoder Petition
 petitionDecoder =
     let
-        apply : Json.Decoder (a -> b) -> Json.Decoder a -> Json.Decoder b
-        apply =
-            Json.object2 (<|)
+        andMap : Json.Decoder a -> Json.Decoder (a -> b) -> Json.Decoder b
+        andMap =
+            Json.map2 (|>)
     in
     Json.succeed Petition
-        `apply` (Json.at ["links", "self"] Json.string)
-        `apply` (Json.at ["data", "attributes", "action"] Json.string)
-        `apply` (Json.object2 (++)
+        |> andMap (Json.at ["links", "self"] Json.string)
+        |> andMap (Json.at ["data", "attributes", "action"] Json.string)
+        |> andMap (Json.map2 (++)
                     (Json.at ["data", "attributes", "background"] linesDecoder)
                     (Json.at ["data", "attributes", "additional_details"] linesDecoder)
-                )
-        `apply` (Json.at ["data", "attributes", "creator_name"] (nullToMaybeDecoder Json.string))
-        `apply` (Json.at ["data", "attributes", "created_at"] dateDecoder)
-        `apply` (Json.at ["data", "attributes", "state"] petitionStateDecoder)
-        `apply` (Json.at ["data", "attributes", "signature_count"] Json.int)
-        `apply` (Json.at ["data", "attributes", "signatures_by_country"] (Json.list countryDecoder))
-        `apply` (Json.at ["data", "attributes", "signatures_by_constituency"] (Json.list constituencyDecoder))
+                  )
+        |> andMap (Json.at ["data", "attributes", "creator_name"] (Json.nullable Json.string))
+        |> andMap (Json.at ["data", "attributes", "created_at"] dateDecoder)
+        |> andMap (Json.at ["data", "attributes", "state"] petitionStateDecoder)
+        |> andMap (Json.at ["data", "attributes", "signature_count"] Json.int)
+        |> andMap (Json.at ["data", "attributes", "signatures_by_country"] (Json.list countryDecoder))
+        |> andMap (Json.at ["data", "attributes", "signatures_by_constituency"] (Json.list constituencyDecoder))
 
 
 type SortBy
@@ -286,12 +285,12 @@ update msg model =
 
         Start ->
             let
-                model' =
+                model_ =
                     { model
                         | state = Home
                     }
             in
-            (,) model' Cmd.none
+            (,) model_ Cmd.none
 
         LoadPetition reloading url ->
             let
@@ -304,31 +303,31 @@ update msg model =
                     else
                         (Summary, defaultReportOptions)
 
-                model' =
+                model_ =
                     { model
                         | state = Loading
                         , view = view
                         , options = options
                     }
             in
-            (,) model' (getPetition url)
+            (,) model_ (getPetition url)
 
         OnPetitionLoaded petition ->
             let
-                recent' =
+                recent_ =
                     model.recent
                         |> PetitionList.add { url = petition.url, title = petition.title }
 
-                model' =
+                model_ =
                     { model
                         | state = Loaded petition
-                        , recent = recent'
+                        , recent = recent_
                     }
 
                 cmd =
-                    setLocalStorage ("recent.petitions", (PetitionList.toJson recent'))
+                    setLocalStorage ("recent.petitions", (PetitionList.toJson recent_))
             in
-            (,) model' cmd
+            (,) model_ cmd
 
         LoadRandomPetition ->
             case model.urlGenerator of
@@ -336,12 +335,12 @@ update msg model =
                     (,) model (Random.generate (LoadPetition False) generator)
                 Nothing ->
                     let
-                        model' =
+                        model_ =
                             { model
                                 | state = Loading
                             }
                     in
-                    (,) model' getRandomUrls
+                    (,) model_ getRandomUrls
 
         OnRandomUrlsLoaded urls ->
             let
@@ -354,7 +353,7 @@ update msg model =
                     Array.get index urls
                         |> Maybe.withDefault defaultUrl
 
-                model' =
+                model_ =
                     { model
                         -- TODO: After urlGenerator is initialised, it
                         -- has access to the urls array for the lifetime
@@ -362,25 +361,25 @@ update msg model =
                         | urlGenerator = Just (Random.map getUrl indexGenerator)
                     }
             in
-            update LoadRandomPetition model'
+            update LoadRandomPetition model_
 
         OnHttpError err ->
             let
-                model' =
+                model_ =
                     { model
                         | state = Failed err
                     }
             in
-            (,) model' Cmd.none
+            (,) model_ Cmd.none
 
         OnLocalStorage key maybeValue ->
             let
-                model' =
+                model_ =
                     maybeValue
                         |> Maybe.map (\value -> updateModelFromLocalStorage key value model)
                         |> Maybe.withDefault model
             in
-            (,) model' Cmd.none
+            (,) model_ Cmd.none
 
         SavePetition item ->
             updateSavedPetitions (PetitionList.add item model.saved) model
@@ -396,57 +395,57 @@ update msg model =
 
         SetView view ->
             let
-                model' =
+                model_ =
                     { model
                         | view = view
                     }
             in
-            (,) model' Cmd.none
+            (,) model_ Cmd.none
 
         UpdateInput input ->
             let
-                model' =
+                model_ =
                     { model
                         | input = input
                     }
             in
-            (,) model' Cmd.none
+            (,) model_ Cmd.none
 
         SortCountryData by ->
             let
-                options' =
+                options_ =
                     { options
                         | countrySortOptions = updateSortOptions by options.countrySortOptions
                     }
             in
-            updateReportOptions options' model
+            updateReportOptions options_ model
 
         SortConstituencyData by ->
             let
-                options' =
+                options_ =
                     { options
                         | constituencySortOptions = updateSortOptions by options.constituencySortOptions
                     }
             in
-            updateReportOptions options' model
+            updateReportOptions options_ model
 
         FilterTopCountries filter ->
             let
-                options' =
+                options_ =
                     { options
                         | topCountryFilter = filter
                     }
             in
-            updateReportOptions options' model
+            updateReportOptions options_ model
 
         ShowRegions show ->
             let
-                options' =
+                options_ =
                     { options
                         | showRegions = show
                     }
             in
-            updateReportOptions options' model
+            updateReportOptions options_ model
 
         -- HACK ALERT! Hopefully there's a proper Elm way to
         -- do this, but for now...
@@ -481,21 +480,30 @@ update msg model =
         -- TODO: Find a less hacky way to do this.
         BatchUpdate msgs ->
             let
-                update' : Msg -> (Model, Cmd Msg) -> (Model, Cmd Msg)
-                update' msg (model, _) =
+                update_ : Msg -> (Model, Cmd Msg) -> (Model, Cmd Msg)
+                update_ msg (model, _) =
                     update msg model
             in
-            List.foldl update' (model, Cmd.none) msgs
+            List.foldl update_ (model, Cmd.none) msgs
 
 
-httpGet : (a -> Msg) -> Json.Decoder a -> String -> Cmd Msg
-httpGet onSuccess decoder url =
-    Task.perform OnHttpError onSuccess (Http.get decoder url)
+httpGet : String -> Json.Decoder a -> (a -> Msg) -> Cmd Msg
+httpGet url decoder onSuccess =
+    let
+        handleResult : Result Http.Error a -> Msg
+        handleResult result =
+            case result of
+                Ok a ->
+                    onSuccess a
+                Err err ->
+                    OnHttpError err
+    in
+    Http.send handleResult (Http.get url decoder)
 
 
 getPetition : String -> Cmd Msg
 getPetition url =
-    httpGet OnPetitionLoaded petitionDecoder (withJsonExtension url)
+    httpGet (withJsonExtension url) petitionDecoder OnPetitionLoaded
 
 
 getRandomUrls : Cmd Msg
@@ -507,9 +515,9 @@ getRandomUrls =
 
         decoder : Json.Decoder (Array String)
         decoder =
-            "data" := Json.array (Json.at ["links", "self"] Json.string)
+            Json.field "data" (Json.array (Json.at ["links", "self"] Json.string))
     in
-    httpGet OnRandomUrlsLoaded decoder url
+    httpGet url decoder OnRandomUrlsLoaded
 
 
 updateModelFromLocalStorage : String -> String -> Model -> Model
@@ -530,18 +538,18 @@ updateModelFromLocalStorage key value model =
 updateModal : (Maybe Modal) -> Model -> (Model, Cmd Msg)
 updateModal maybeModal model =
     let
-        model' =
+        model_ =
             { model
                 | modal = maybeModal
             }
     in
-    (,) model' Cmd.none
+    (,) model_ Cmd.none
 
 
 updateSavedPetitions : PetitionList -> Model -> (Model, Cmd Msg)
 updateSavedPetitions petitions model =
     let
-        model' =
+        model_ =
             { model
                 | saved = petitions
             }
@@ -549,18 +557,18 @@ updateSavedPetitions petitions model =
         cmd =
             setLocalStorage ("saved.petitions", (PetitionList.toJson petitions))
     in
-    (,) model' cmd
+    (,) model_ cmd
 
 
 updateReportOptions : ReportOptions -> Model -> (Model, Cmd Msg)
 updateReportOptions options model =
     let
-        model' =
+        model_ =
             { model
                 | options = options
             }
     in
-    (,) model' Cmd.none
+    (,) model_ Cmd.none
 
 
 updateSortOptions : SortBy -> SortOptions -> SortOptions
@@ -599,7 +607,7 @@ type PageType
 
 
 type alias Page =
-    { type' : PageType
+    { type_ : PageType
     , title : String
     , content : List (Html Msg)
     , navitems : List Link
@@ -609,7 +617,7 @@ type alias Page =
 
 blankPage : Page
 blankPage =
-    { type' = NormalPage
+    { type_ = NormalPage
     , title = ""
     , content = []
     , navitems = []
@@ -675,7 +683,7 @@ renderPage page =
     let
         home : Link
         home =
-            case page.type' of
+            case page.type_ of
                 NormalPage ->
                     { text = "UK Petitions"
                     , msg = Start
@@ -701,13 +709,13 @@ renderPage page =
 
         footer : Maybe (Html Msg)
         footer =
-            case page.type' of
+            case page.type_ of
                 NormalPage ->
                     Just renderFooter
                 ModalPage _ ->
                     Nothing
     in
-    Html.div -- Wrapper element required by Elm :( 
+    Html.div -- Wrapper element required by Elm :(
         [ Attributes.id "elm-container" ]
         [ Html.div -- Extra wrapper for sticky footer CSS :(
             [ Attributes.classList
@@ -853,17 +861,19 @@ renderErrorPage err =
         reason : String
         reason =
             case err of
+                Http.BadUrl url ->
+                    url ++ " is not a valid URL."
                 Http.Timeout ->
                     "The request timed out."
                 Http.NetworkError ->
                     "There was some kind of network error."
-                Http.BadResponse code status ->
+                Http.BadStatus resp ->
                     "The request returned Status "
-                        ++ toString code
+                        ++ toString resp.status.code
                         ++ " "
-                        ++ status
+                        ++ resp.status.message
                         ++ "."
-                Http.UnexpectedPayload msg ->
+                Http.BadPayload msg resp ->
                     "The results came back in a format I wasn't expecting."
 
         content : List (Html Msg)
@@ -919,7 +929,7 @@ renderMyPetitionsPage saved recent =
     in
     renderPage
         { blankPage
-            | type' = ModalPage "My Petitions"
+            | type_ = ModalPage "My Petitions"
             , title = "Your Petitions"
             , content = content
         }
@@ -947,7 +957,7 @@ renderFAQPage =
     in
     renderPage
         { blankPage
-            | type' = ModalPage "FAQ"
+            | type_ = ModalPage "FAQ"
             , title = "Frequently Asked Questions"
             , content = List.concat (List.map2 render questions answers)
         }
@@ -1221,7 +1231,7 @@ renderPetitionConstituencies petition opts =
         region : Constituency -> String
         region constituency =
             constituency.info
-                |> (flip Maybe.andThen) .region
+                |> Maybe.andThen .region
                 |> Maybe.map regionString
                 |> Maybe.withDefault ""
 
@@ -1506,7 +1516,7 @@ renderUkRegions petition opts =
         region : Constituency -> String
         region constituency =
             constituency.info
-                |> (flip Maybe.andThen) .region
+                |> Maybe.andThen .region
                 |> Maybe.map regionString
                 |> Maybe.withDefault (country constituency)
 
@@ -1532,7 +1542,7 @@ renderUkRegions petition opts =
             petition.constituencies
                 |> List.foldr (updateDict key) Dict.empty
                 |> Dict.toList
-                |> sort Desc snd
+                |> sort Desc Tuple.second
                 |> List.unzip
 
         radioLabels : List String
@@ -1696,7 +1706,7 @@ renderRadioGroup name labels msgs checks =
                 , Attributes.class "radio"
                 ]
                 [ Html.input
-                    [ Attributes.type' "radio"
+                    [ Attributes.type_ "radio"
                     , Attributes.checked checked
                     , Attributes.name name
                     ] []
@@ -1735,7 +1745,9 @@ type alias Row a =
     List (Cell a)
 
 
-renderTable : List Header -> Row a -> List (Row (List a)) -> List a -> Html Msg
+-- TODO: Fix this type annotation. It causes a compilation
+-- error in Elm 0.18.
+-- renderTable : List Header -> Row a -> List (Row (List a)) -> List a -> Html Msg
 renderTable headers cells footers data =
     let
         alignAttribute : Align -> Html.Attribute Msg
@@ -1946,9 +1958,9 @@ init config =
     (,) model cmd
 
 
-main : Program Config
+main : Program Config Model Msg
 main =
-    Html.App.programWithFlags
+    Html.programWithFlags
         { init = init
         , update = update
         , view = view
@@ -1965,7 +1977,19 @@ main =
 
 dateDecoder : Json.Decoder Date
 dateDecoder =
-    Json.customDecoder Json.string Date.fromString
+    let
+        -- TODO: Replace this function if/when Elm 0.18
+        -- gets a replacement for Json.Decode.customDecoder.
+        -- See https://groups.google.com/forum/#!topic/elm-dev/Ctl_kSKJuYc
+        stringToDateDecoder : String -> Json.Decoder Date
+        stringToDateDecoder string =
+            case (Date.fromString string) of
+                Ok date ->
+                    Json.succeed date
+                Err err ->
+                    Json.fail err
+    in
+    Json.andThen stringToDateDecoder Json.string
 
 
 linesDecoder : Json.Decoder (List String)
@@ -1979,11 +2003,6 @@ linesDecoder =
                 |> List.filter (not << String.isEmpty)
     in
     Json.map lines Json.string
-
-
-nullToMaybeDecoder : Json.Decoder a -> Json.Decoder (Maybe a)
-nullToMaybeDecoder decoder =
-    Json.oneOf [Json.map Just decoder, Json.null Nothing]
 
 
 -- Maybe Utils
@@ -2007,21 +2026,21 @@ listToMaybe list =
 dps : Int -> Float -> String
 dps dps value =
     let
-        dps' : Int
-        dps' =
+        dps_ : Int
+        dps_ =
             max 0 dps
 
         rounding : Float
         rounding =
-            0.5 / (toFloat (10 ^ dps'))
+            0.5 / (toFloat (10 ^ dps_))
 
-        value' : Float
-        value' =
+        value_ : Float
+        value_ =
             if value < 0 then (value - rounding) else (value + rounding)
 
         parts : List String
         parts =
-            String.split "." (toString value')
+            String.split "." (toString value_)
 
         integer : Maybe String
         integer =
@@ -2039,10 +2058,10 @@ dps dps value =
                     case fractional of
                         Just str ->
                             str
-                                |> String.left dps'
-                                |> String.padRight dps' '0'
+                                |> String.left dps_
+                                |> String.padRight dps_ '0'
                         Nothing ->
-                            String.repeat dps' "0"
+                            String.repeat dps_ "0"
             in
             int ++ "." ++ frac
         Nothing ->
@@ -2318,9 +2337,31 @@ defaultUrl =
 
 urlWithId : String -> String
 urlWithId id =
-    baseUrl ++ "/petitions/" ++ (Http.uriEncode id)
+    baseUrl ++ "/petitions/" ++ (Http.encodeUri id)
 
 
 urlWithParams : List (String, String) -> String
 urlWithParams params =
-    Http.url (baseUrl ++ "/petitions.json") params
+    url (baseUrl ++ "/petitions.json") params
+
+
+-- TODO: Replace this function with Http.url if/when
+-- that function makes it into Elm 0.18.
+-- See https://groups.google.com/forum/#!topic/elm-discuss/XaIr96e8qXk
+-- and https://github.com/elm-lang/http/pull/15
+url : String -> List (String, String) -> String
+url baseUrl args =
+    let
+        queryPair : (String, String) -> String
+        queryPair (key,value) =
+            queryEscape key ++ "=" ++ queryEscape value
+
+        queryEscape : String -> String
+        queryEscape string =
+            String.join "+" (String.split "%20" (Http.encodeUri string))
+    in
+    case args of
+        [] ->
+            baseUrl
+        _ ->
+            baseUrl ++ "?" ++ String.join "&" (List.map queryPair args)

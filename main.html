@@ -40,15 +40,7 @@
         if (localStorageAvailable()) {
             elm.ports.getLocalStorage.subscribe(function(key) {
                 var value = localStorage.getItem(key) || null;
-                // Note the fake callback to send data back to Elm.
-                // This works around a bug whereby Elm ports cannot
-                // receive data from JavaScript on app initialisation.
-                // See https://github.com/elm-lang/core/issues/582
-                // and https://github.com/elm-lang/core/issues/595
-                // for more info.
-                window.setTimeout(function() {
-                    elm.ports.onLocalStorage.send([key, value]);
-                }, 0);
+                elm.ports.onLocalStorage.send([key, value]);
             });
 
             elm.ports.setLocalStorage.subscribe(function(keyValue) {

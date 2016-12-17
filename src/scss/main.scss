@@ -8,14 +8,6 @@ $font-weight-normal: 400;
 $font-weight-bold: 500;
 $font-weight-bolder: 700;
 
-$font-size-h1: 1.05em;
-$font-size-h2: 2.6em;
-$font-size-h3: 1.75em;
-$font-size-h4: 1.4em;
-
-$font-size-large: 1.5em;
-$font-size-larger: 2em;
-
 $color-background: #eeeff1;
 $color-background-darker: darken($color-background, 7.5%);
 $color-text: #121b21;
@@ -28,16 +20,18 @@ $color-border: #dbdbdb;
 $height-footer: 3.5em;
 $height-footer-padding: 2.5em;
 
-// This extra wrapper div is required by Elm. In order
-// for our sticky footer CSS to work, the Elm wrapper
-// has to be set to 100% height.
-#elm-container {
-    height: 100%;
-}
+$gutter: 2em;
 
 @include selection {
     color: white;
     background-color: $color-contrast;
+}
+
+// This extra wrapper div is required by Elm. We
+// need it to be 100% height. Otherwise our sticky
+// footer styles won't work.
+#elm-body {
+    height: 100%;
 }
 
 @include sticky-footer(".content-wrapper", $height-footer + $height-footer-padding);
@@ -50,52 +44,27 @@ body {
     line-height: $line-height;
 }
 
-h1 {
-    font-size: $font-size-h1;
-    font-weight: $font-weight-normal;
-    text-transform: uppercase;
-
-    i {
-        padding-right: 6px;
-    }
-}
-
-h2, h3, h4 {
+h1, h2, h3, h4 {
     line-height: 1.2;
+    font-weight: $font-weight-normal;
 }
 
-h3, h4 {
-    font-weight: $font-weight-normal;
+h1 {
+    font-size: 1.05em;
+    text-transform: uppercase;
 }
 
 h2 {
-    font-size: $font-size-h2;
+    font-size: 2.6em;
     font-weight: $font-weight-bold;
 }
 
 h3 {
-    font-size: $font-size-h3;
+    font-size: 1.75em;
 }
 
 h4 {
-    font-size: $font-size-h4;
-}
-
-.large {
-    font-size: $font-size-large;
-}
-
-.larger {
-    font-size: $font-size-larger;
-}
-
-.subbed {
-    margin-bottom: 0;
-}
-
-.highlight {
-    color: $color-contrast;
-    font-weight: $font-weight-bolder;
+    font-size: 1.4em;
 }
 
 a:link, a:visited {
@@ -106,6 +75,27 @@ a:link, a:visited {
 
 a:hover, a:active {
     color: $color-link-hover;
+}
+
+.large {
+    font-size: 1.5em;
+}
+
+.larger {
+    font-size: 2em;
+}
+
+.subbed {
+    margin-bottom: 0;
+}
+
+.iconed {
+    display: none;
+}
+
+.highlight {
+    color: $color-contrast;
+    font-weight: $font-weight-bolder;
 }
 
 .button {
@@ -127,12 +117,8 @@ a:hover, a:active {
     line-height: 1.75;
 }
 
-header, footer, .main {
-    padding: 0 2em;
-}
-
 .main {
-    margin: 5em 0;
+    margin: 5em $gutter;
 }
 
 .page {
@@ -153,6 +139,7 @@ footer {
     color: $color-text-lighter;
     text-align: center;
     height: $height-footer;
+    margin: 0 $gutter;
     padding-top: $height-footer-padding;
 
     a:link, a:visited {
@@ -170,8 +157,8 @@ header {
 
     height: $height;
     line-height: $height;
+    padding: 0 $gutter;
     background-color: white;
-    margin-bottom: 5em;
     border-bottom: 1px solid $color-border;
     // Header rolls up when the loading screen is shown.
     transition: height .25s;
@@ -181,6 +168,11 @@ header {
     h1 {
         margin: 0;
         float: left;
+        line-height: inherit;
+
+        i {
+            padding-right: 6px;
+        }
 
         .icon-portcullis {
             float: left;
@@ -219,7 +211,8 @@ header {
         a {
             display: inline-block;
             padding-bottom: 1.5em;
-            border-bottom: 2px solid transparent;
+            border-bottom: 4px solid transparent;
+            transition: border-color .25s;
 
             &:link, &:visited {
                 color: inherit;
@@ -234,32 +227,38 @@ header {
 
 // Home page
 
-.intro {
-    max-width: 30em;
+.pg-home {
+    .page {
+        max-width: 48em;
+        margin-top: 8em;
+    }
+
+    .titles {
+        border-bottom: none;
+    }
+
+    form {
+        margin-top: -.5em;
+    }
+
+    p {
+        font-size: 1.25em;
+        text-align: right;
+    }
 }
 
 .textbox {
-    $color: #655;
     $height: 3em;
-    $button-width: 4em;
-    $left-padding: 1.5em;
-    $max-width: 30em;
 
-    font-size: 1.15em;
     width: 100%;
-    max-width: $max-width;
+    font-size: 1.5em;
     height: $height;
     line-height: $height;
-    color: $color;
-    background: white;
-    border: 3px solid $color-border;
-    border-radius: 2em;
-    // For positioning the button.
+    border-bottom: 2px solid;
+    // For absolute positioning of the label/button.
     position: relative;
-    // Hide square corners of input field and button.
-    overflow: hidden;
 
-    input, button {
+    label, input, button {
         outline: 0;
         padding: 0;
         border: none;
@@ -268,38 +267,133 @@ header {
         background: inherit;
     }
 
+    label {
+        position: absolute;
+        left: 0;
+
+        i {
+            font-size: 1.05em;
+        }
+    }
+
     input {
         width: 100%;
         // Include padding in the width. 
         box-sizing: border-box;
-        padding-left: $left-padding;
-        padding-right: $button-width;
+        padding-left: 2.4em;
 
         @include input-placeholder {
-            opacity: .5;
-            color: inherit;
+            opacity: 1;
+            color: $color-text-lighter;
         }
     }
 
     button {
-        position: absolute;
-        top: 0;
-        right: 0;
-        width: $button-width;
-        cursor: pointer;
-
-        i {
-            color: $color-link;
-            font-size: 1.25em;
-            transition: opacity .25s;
-        }
-
-        &:disabled i {
-            opacity: .5;
-            color: inherit;
-        }
+        display: none;
     }
 }
+
+// .textbox {
+//     $color: #655;
+//     $height: 3em;
+//     $max-width: 30em;
+
+//     font-size: 1.15em;
+//     width: 100%;
+//     max-width: $max-width;
+//     height: $height;
+//     line-height: $height;
+//     color: $color;
+//     background: white;
+//     border: 2px solid $color-border;
+//     border-radius: .25em;
+//     // Hide square corners of input field and button.
+//     overflow: hidden;
+
+//     input, button {
+//         outline: 0;
+//         padding: 0;
+//         border: none;
+//         height: 100%;
+//         color: inherit;
+//         background: inherit;
+//     }
+
+//     input {
+//         width: 100%;
+//         // Include padding in the width. 
+//         box-sizing: border-box;
+//         padding: 0 1.5em;
+
+//         @include input-placeholder {
+//             opacity: .5;
+//             color: inherit;
+//         }
+//     }
+// }
+
+// .textbox {
+//     $color: #655;
+//     $height: 3em;
+//     $button-width: 4em;
+//     $left-padding: 1.5em;
+//     $max-width: 30em;
+
+//     font-size: 1.15em;
+//     width: 100%;
+//     max-width: $max-width;
+//     height: $height;
+//     line-height: $height;
+//     color: $color;
+//     background: white;
+//     border: 3px solid $color-border;
+//     border-radius: 2em;
+//     // For positioning the button.
+//     position: relative;
+//     // Hide square corners of input field and button.
+//     overflow: hidden;
+
+//     input, button {
+//         outline: 0;
+//         padding: 0;
+//         border: none;
+//         height: 100%;
+//         color: inherit;
+//         background: inherit;
+//     }
+
+//     input {
+//         width: 100%;
+//         // Include padding in the width. 
+//         box-sizing: border-box;
+//         padding-left: $left-padding;
+//         padding-right: $button-width;
+
+//         @include input-placeholder {
+//             opacity: .5;
+//             color: inherit;
+//         }
+//     }
+
+//     button {
+//         position: absolute;
+//         top: 0;
+//         right: 0;
+//         width: $button-width;
+//         cursor: pointer;
+
+//         i {
+//             color: $color-link;
+//             font-size: 1.25em;
+//             transition: opacity .25s;
+//         }
+
+//         &:disabled i {
+//             opacity: .5;
+//             color: inherit;
+//         }
+//     }
+// }
 
 .mru {
     padding-top: 2em;
@@ -311,7 +405,7 @@ header {
 
 // Loading page
 
-.loading {
+.pg-loading {
     text-align: center;
 
     header {
@@ -319,11 +413,17 @@ header {
         margin-bottom: 6em;
     }
 
-    .message {
+    h3 {
         margin: 0;
-        font-size: 1.8em;
+        line-height: inherit;
         font-weight: $font-weight-bold;
     }
+}
+
+// Error page
+
+.error-message {
+    max-width: 48em;
 }
 
 // Petition Summary page
@@ -462,7 +562,7 @@ header {
     h3 {
         float: left;
         margin: 0;
-        line-height: $line-height / $font-size-h3;
+        line-height: inherit;
     }
 
     .options {

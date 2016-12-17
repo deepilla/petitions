@@ -43,32 +43,25 @@ type Modal
 
 type PetitionState
     = Open
-    | Closed
-    | Rejected
-    | Other String
+    | Closed Date
+    | Rejected Date
 
 
-parsePetitionState : String -> PetitionState
-parsePetitionState state =
+makePetitionStateDecoder : String -> Json.Decoder PetitionState
+makePetitionStateDecoder state =
     case String.toLower (String.trim state) of
         "open" ->
-            Open
+            Json.succeed Open
         "closed" ->
-            Closed
+            Json.map Closed (Json.at ["data", "attributes", "closed_at"] dateDecoder)
         "rejected" ->
-            Rejected
+            Json.map Rejected (Json.at ["data", "attributes", "rejected_at"] dateDecoder)
         _ ->
-            Other state
-
-
-petitionStateDecoder : Json.Decoder PetitionState
-petitionStateDecoder =
-    Json.map parsePetitionState Json.string
+            Json.fail ("Unexpected petition state " ++ state)
 
 
 type alias Country =
     { name : String
-    , code : String
     , signatures : Int
     , isUK : Bool
     , isEU : Bool
@@ -77,9 +70,8 @@ type alias Country =
 
 countryDecoder : Json.Decoder Country
 countryDecoder =
-    Json.map5 Country
+    Json.map4 Country
         (Json.field "name" Json.string)
-        (Json.field "code" Json.string)
         (Json.field "signature_count" Json.int)
         -- Look up UK membership using the country code.
         (Json.field "code" (Json.map Country.isUK Json.string))
@@ -89,7 +81,6 @@ countryDecoder =
 
 type alias Constituency =
     { name : String
-    , code : String
     -- MP can be null (due to death, resignation etc).
     , mp : Maybe String
     , signatures : Int
@@ -99,9 +90,8 @@ type alias Constituency =
 
 constituencyDecoder : Json.Decoder Constituency
 constituencyDecoder =
-    Json.map5 Constituency
+    Json.map4 Constituency
         (Json.field "name" Json.string)
-        (Json.field "ons_code" Json.string)
         (Json.field "mp" (Json.nullable Json.string))
         (Json.field "signature_count" Json.int)
         -- Look up constituency info using the ONS code.
@@ -112,7 +102,7 @@ type alias Petition =
     { url : String
     , title : String
     , description : List String
-    -- Creator is null for closed petitions.
+    -- Creator is null for closed/rejected petitions.
     , creator : Maybe String
     , created : Date
     , state : PetitionState
@@ -138,16 +128,18 @@ petitionDecoder =
                   )
         |> andMap (Json.at ["data", "attributes", "creator_name"] (Json.nullable Json.string))
         |> andMap (Json.at ["data", "attributes", "created_at"] dateDecoder)
-        |> andMap (Json.at ["data", "attributes", "state"] petitionStateDecoder)
+        |> andMap (Json.andThen makePetitionStateDecoder
+                    (Json.at ["data", "attributes", "state"] Json.string)
+                  )
         |> andMap (Json.at ["data", "attributes", "signature_count"] Json.int)
         |> andMap (Json.at ["data", "attributes", "signatures_by_country"] (Json.list countryDecoder))
         |> andMap (Json.at ["data", "attributes", "signatures_by_constituency"] (Json.list constituencyDecoder))
 
 
 type SortBy
-    = ByCountry
-    | ByConstituency
-    | BySignatures
+    = SortByCountry
+    | SortByConstituency
+    | SortBySignatures
 
 
 type SortOrder
@@ -158,11 +150,11 @@ type SortOrder
 defaultSortOrder : SortBy -> SortOrder
 defaultSortOrder by =
     case by of
-        ByCountry ->
+        SortByCountry ->
             Asc
-        ByConstituency ->
+        SortByConstituency ->
             Asc
-        BySignatures ->
+        SortBySignatures ->
             Desc
 
 
@@ -174,8 +166,8 @@ type alias SortOptions =
 
 defaultSortOptions : SortOptions
 defaultSortOptions =
-    { by = BySignatures
-    , order = defaultSortOrder BySignatures
+    { by = SortBySignatures
+    , order = defaultSortOrder SortBySignatures
     }
 
 
@@ -185,9 +177,14 @@ type CountryFilter
     | All
 
 
+type GroupBy
+    = GroupByRegion
+    | GroupByCountry
+
+
 type alias ReportOptions =
     { topCountryFilter : CountryFilter
-    , showRegions : Bool
+    , constituencyGrouping : GroupBy
     , countrySortOptions : SortOptions
     , constituencySortOptions : SortOptions
     }
@@ -196,7 +193,7 @@ type alias ReportOptions =
 defaultReportOptions : ReportOptions
 defaultReportOptions =
     { topCountryFilter = NonUK
-    , showRegions = True
+    , constituencyGrouping = GroupByRegion
     , countrySortOptions = defaultSortOptions
     , constituencySortOptions = defaultSortOptions
     }
@@ -253,16 +250,16 @@ type Msg
     | UnsavePetition PetitionList.Item
     -- User inputs
     | UpdateInput String
-    -- HTTP Callbacks
+    -- HTTP/JS Callbacks
+    | OnHttpError Http.Error
     | OnPetitionLoaded Petition
     | OnRandomUrlsLoaded (Array String)
-    | OnHttpError Http.Error
     | OnLocalStorage String (Maybe String)
     -- Options
     | SortCountryData SortBy
     | SortConstituencyData SortBy
     | FilterTopCountries CountryFilter
-    | ShowRegions Bool
+    | GroupConstituencies GroupBy
     -- Misc
     | BatchUpdate (List Msg)
 
@@ -294,23 +291,19 @@ update msg model =
 
         LoadPetition reloading url ->
             let
-                -- If we're reloading the current petition, keep
-                -- the existing settings. Otherwise, reset to the
-                -- defaults.
-                (view, options) =
-                    if reloading then
-                        (model.view, model.options)
-                    else
-                        (Summary, defaultReportOptions)
-
                 model_ =
-                    { model
-                        | state = Loading
-                        , view = view
-                        , options = options
-                    }
+                    if reloading then
+                        { model
+                            | state = Loading
+                        }
+                    else
+                        { model
+                            | state = Loading
+                            , view = Summary
+                            , options = defaultReportOptions
+                        }
             in
-            (,) model_ (getPetition url)
+            (,) model_ (fetchPetition url)
 
         OnPetitionLoaded petition ->
             let
@@ -340,7 +333,7 @@ update msg model =
                                 | state = Loading
                             }
                     in
-                    (,) model_ getRandomUrls
+                    (,) model_ fetchRandomUrls
 
         OnRandomUrlsLoaded urls ->
             let
@@ -355,9 +348,6 @@ update msg model =
 
                 model_ =
                     { model
-                        -- TODO: After urlGenerator is initialised, it
-                        -- has access to the urls array for the lifetime
-                        -- of the program. Find out how this works!
                         | urlGenerator = Just (Random.map getUrl indexGenerator)
                     }
             in
@@ -372,14 +362,24 @@ update msg model =
             in
             (,) model_ Cmd.none
 
-        OnLocalStorage key maybeValue ->
+        OnLocalStorage key (Just value) ->
             let
                 model_ =
-                    maybeValue
-                        |> Maybe.map (\value -> updateModelFromLocalStorage key value model)
-                        |> Maybe.withDefault model
+                    if key == "recent.petitions" then
+                        { model
+                            | recent = PetitionList.fromJson value
+                        }
+                    else if key == "saved.petitions" then
+                        { model
+                            | saved = PetitionList.fromJson value
+                        }
+                    else
+                        model
             in
             (,) model_ Cmd.none
+
+        OnLocalStorage _ Nothing ->
+            (,) model Cmd.none
 
         SavePetition item ->
             updateSavedPetitions (PetitionList.add item model.saved) model
@@ -388,10 +388,10 @@ update msg model =
             updateSavedPetitions (PetitionList.remove item model.saved) model
 
         ShowModal modal ->
-            updateModal (Just modal) model
+            (,) (updateModal (Just modal) model) Cmd.none
 
         HideModal ->
-            updateModal Nothing model
+            (,) (updateModal Nothing model) Cmd.none
 
         SetView view ->
             let
@@ -418,7 +418,7 @@ update msg model =
                         | countrySortOptions = updateSortOptions by options.countrySortOptions
                     }
             in
-            updateReportOptions options_ model
+            (,) (updateReportOptions options_ model) Cmd.none
 
         SortConstituencyData by ->
             let
@@ -427,7 +427,7 @@ update msg model =
                         | constituencySortOptions = updateSortOptions by options.constituencySortOptions
                     }
             in
-            updateReportOptions options_ model
+            (,) (updateReportOptions options_ model) Cmd.none
 
         FilterTopCountries filter ->
             let
@@ -436,48 +436,34 @@ update msg model =
                         | topCountryFilter = filter
                     }
             in
-            updateReportOptions options_ model
+            (,) (updateReportOptions options_ model) Cmd.none
 
-        ShowRegions show ->
+        GroupConstituencies by ->
             let
                 options_ =
                     { options
-                        | showRegions = show
+                        | constituencyGrouping = by
                     }
             in
-            updateReportOptions options_ model
+            (,) (updateReportOptions options_ model) Cmd.none
 
-        -- HACK ALERT! Hopefully there's a proper Elm way to
-        -- do this, but for now...
+        -- TODO: Is there a better way to do handle multiple
+        -- updates?
         --
         -- In some cases a single user action needs to trigger
         -- more than one action in the program. For example,
         -- when you select a petition from the My Petitions
-        -- screen, the app has to close the My Petitions modal
-        -- AND load the petition. That involves two separate
+        -- modal screen, the app has to close the modal AND
+        -- THEN load the petition. That involves two separate
         -- Msgs: HideModal and LoadPetition.
         --
-        -- We could handle this by passing a Msg argument to
-        -- HideModal, e.g.:
-        --
-        --      HideModal (LoadPetition False url)
-        --
-        -- But then HideModal has to handle an extra, completely
-        -- unrelated message. And we have to use the same trick
-        -- for every message with similar behaviour. When a user
-        -- chooses a command from a pop-up menu, for example, we
-        -- want to hide the menu and then execute the command.
-        -- Do we pass a Msg to HideMenu too?
-        --
-        -- A more flexible and extensible solution is to provide
-        -- a dummy Msg that takes an arbitrary list of Msgs and
-        -- calls update for each one. That's what BatchUpdate
-        -- does. The returned Model includes all the changes from
-        -- each call to update. The returned Cmd is the one from
-        -- the FINAL call to update. Any other Cmds generated
-        -- along the way are discarded!
-        --
-        -- TODO: Find a less hacky way to do this.
+        -- BatchUpdate is a flexible way to handle these cases.
+        -- It takes an arbitrary list of Msgs and calls update
+        -- for each one in turn. The returned Model contains
+        -- all of the accumulated changes from each call to
+        -- update. The returned Cmd is the one from THE FINAL
+        -- CALL to update. Any other Cmds generated along the
+        -- way are discarded. Use with caution!
         BatchUpdate msgs ->
             let
                 update_ : Msg -> (Model, Cmd Msg) -> (Model, Cmd Msg)
@@ -487,63 +473,18 @@ update msg model =
             List.foldl update_ (model, Cmd.none) msgs
 
 
-httpGet : String -> Json.Decoder a -> (a -> Msg) -> Cmd Msg
-httpGet url decoder onSuccess =
-    let
-        handleResult : Result Http.Error a -> Msg
-        handleResult result =
-            case result of
-                Ok a ->
-                    onSuccess a
-                Err err ->
-                    OnHttpError err
-    in
-    Http.send handleResult (Http.get url decoder)
-
-
-getPetition : String -> Cmd Msg
-getPetition url =
-    httpGet (withJsonExtension url) petitionDecoder OnPetitionLoaded
-
-
-getRandomUrls : Cmd Msg
-getRandomUrls =
-    let
-        url : String
-        url =
-            urlWithParams [("state", "open")]
-
-        decoder : Json.Decoder (Array String)
-        decoder =
-            Json.field "data" (Json.array (Json.at ["links", "self"] Json.string))
-    in
-    httpGet url decoder OnRandomUrlsLoaded
-
-
-updateModelFromLocalStorage : String -> String -> Model -> Model
-updateModelFromLocalStorage key value model =
-    case key of
-        "recent.petitions" ->
-            { model
-                | recent = PetitionList.fromJson value
-            }
-        "saved.petitions" ->
-            { model
-                | saved = PetitionList.fromJson value
-            }
-        _ ->
-            model
-
-
-updateModal : (Maybe Modal) -> Model -> (Model, Cmd Msg)
+updateModal : (Maybe Modal) -> Model -> Model
 updateModal maybeModal model =
-    let
-        model_ =
-            { model
-                | modal = maybeModal
-            }
-    in
-    (,) model_ Cmd.none
+    { model
+        | modal = maybeModal
+    }
+
+
+updateReportOptions : ReportOptions -> Model -> Model
+updateReportOptions options model =
+    { model
+        | options = options
+    }
 
 
 updateSavedPetitions : PetitionList -> Model -> (Model, Cmd Msg)
@@ -558,17 +499,6 @@ updateSavedPetitions petitions model =
             setLocalStorage ("saved.petitions", (PetitionList.toJson petitions))
     in
     (,) model_ cmd
-
-
-updateReportOptions : ReportOptions -> Model -> (Model, Cmd Msg)
-updateReportOptions options model =
-    let
-        model_ =
-            { model
-                | options = options
-            }
-    in
-    (,) model_ Cmd.none
 
 
 updateSortOptions : SortBy -> SortOptions -> SortOptions
@@ -587,6 +517,39 @@ updateSortOptions by opts =
     { by = by
     , order = order
     }
+
+
+fetch : (a -> Msg) -> Json.Decoder a -> String -> Cmd Msg
+fetch onSuccess decoder url =
+    let
+        handleResult : Result Http.Error a -> Msg
+        handleResult result =
+            case result of
+                Ok a ->
+                    onSuccess a
+                Err err ->
+                    OnHttpError err
+    in
+    Http.send handleResult (Http.get url decoder)
+
+
+fetchPetition : String -> Cmd Msg
+fetchPetition url =
+    fetch OnPetitionLoaded petitionDecoder (withJsonExtension url)
+
+
+fetchRandomUrls : Cmd Msg
+fetchRandomUrls =
+    let
+        url : String
+        url =
+            urlWithParams [("state", "open")]
+
+        decoder : Json.Decoder (Array String)
+        decoder =
+            Json.field "data" (Json.array (Json.at ["links", "self"] Json.string))
+    in
+    fetch OnRandomUrlsLoaded decoder url
 
 
 -- VIEW
@@ -608,6 +571,7 @@ type PageType
 
 type alias Page =
     { type_ : PageType
+    , class : Maybe String
     , title : String
     , content : List (Html Msg)
     , navitems : List Link
@@ -618,6 +582,7 @@ type alias Page =
 blankPage : Page
 blankPage =
     { type_ = NormalPage
+    , class = Nothing
     , title = ""
     , content = []
     , navitems = []
@@ -716,7 +681,9 @@ renderPage page =
                     Nothing
     in
     Html.div -- Wrapper element required by Elm :(
-        [ Attributes.id "elm-container" ]
+        [ Attributes.id "elm-body"
+        , Attributes.class (Maybe.withDefault "" page.class)
+        ]
         [ Html.div -- Extra wrapper for sticky footer CSS :(
             [ Attributes.classList
                 [ ("content-wrapper", footer /= Nothing) ]
@@ -749,33 +716,24 @@ renderPage page =
 renderHomePage : Model -> Html Msg
 renderHomePage model =
     let
-        mru : Maybe (Html Msg)
-        mru =
-            model.recent
-                |> renderPetitionList
-                |> Maybe.map (List.repeat 1)
-                |> Maybe.map ((::) (Html.h4 [] [ Html.text "You recently viewed" ]))
-                |> Maybe.map (Html.div [ Attributes.class "mru" ])
-
         content : List (Html Msg)
         content =
-            [ Html.p
-                [ Attributes.class "large intro" ]
-                [ Html.text "To view a petition, enter the URL below. Don't have one in mind? "
+            [ renderInput model.input
+            , Html.p []
+                [ Html.text "(or "
                 , Html.a
                     [ Events.onClick LoadRandomPetition
                     , Attributes.href "javascript:;"
                     ]
-                    [ Html.text "Click here to load a random petition" ]
-                , Html.text "."
+                    [ Html.text "click here" ]
+                , Html.text " to load one at random)"
                 ]
-            , renderInput model.input
-            , maybeRender mru
             ]
     in
     renderPage
         { blankPage
             | title = "Get Started"
+            , class = Just "pg-home"
             , content = content
             , menuitems = defaultLinks
         }
@@ -784,9 +742,13 @@ renderHomePage model =
 renderPetitionPage : Petition -> Model -> Html Msg
 renderPetitionPage petition model =
     let
+        item : PetitionList.Item
+        item =
+            PetitionList.Item petition.url petition.title
+
         isSaved : Bool
         isSaved =
-            PetitionList.member (PetitionList.Item petition.url petition.title) model.saved
+            PetitionList.member item model.saved
 
         content : List (Html Msg)
         content =
@@ -805,7 +767,7 @@ renderPetitionPage petition model =
             | title = petition.title
             , content = content
             , navitems = navigationLinks model.view
-            , menuitems = (petitionLinks petition.url petition.title isSaved) ++ defaultLinks
+            , menuitems = (petitionLinks item isSaved) ++ defaultLinks
         }
 
 
@@ -816,31 +778,31 @@ renderLoadingPage =
         imageSize = 80
     in
     Html.div
-        [ Attributes.class "loading" ]
-        -- HACK ALERT! Hopefully there's a proper Elm way
-        -- to do this, but for now...
+        [ Attributes.class "pg-loading" ]
+        -- TODO: Get rid of the extra HTML elements on the
+        -- loading page.
         --
-        -- This page includes an empty header element in
-        -- order to produce a CSS transition when switching
+        -- This page contains an empty header element wrapped
+        -- in a div. These elements serve no purpose other
+        -- than to facilitate a CSS transition when switching
         -- between the loading page and the content pages.
         -- The header slides up when data is loading and
-        -- slides down again when the data comes back.
+        -- slides down again when the results come back.
         --
-        -- This effect relies on Elm realising that the
-        -- header in the loading page is the same element
-        -- as the header from the content page. That's
-        -- why we need an extra wrapper div. The content
-        -- page header is wrapped in two divs, so the
-        -- loading page header needs to be too. Otherwise,
-        -- Elm can't match the elements in its virtual DOM.
+        -- This effect relies on Elm knowing that the header
+        -- in the loading page is the same element as the
+        -- header in the content pages. That's why we need
+        -- the extra wrapper div below. If we don't wrap
+        -- this header in two divs like in the content pages,
+        -- Elm can't match up the elements in its virtual DOM.
         -- It just scraps the original header and draws a
-        -- new one. Instead of one element which changes
-        -- from State A to State B, we end up with two
-        -- completely different elements and therefore
-        -- no transition.
+        -- new one. We need ONE header with multiple states
+        -- in order for the CSS transition to work.
         --
-        -- TODO: Find a better way to transition between
-        -- pages.
+        -- This is a temporary solution. We want some way of
+        -- transitioning between pages that a) doesn't require
+        -- any extra elements and b) works across all pages.
+        -- To be revisited...
         [ Html.div []
             [ Html.header [] []
             , Html.img
@@ -848,8 +810,7 @@ renderLoadingPage =
                 , Attributes.width imageSize
                 , Attributes.height imageSize
                 ] []
-            , Html.p
-                [ Attributes.class "message" ]
+            , Html.h3 []
                 [ Html.text "Hang on a sec..." ]
             ]
         ]
@@ -864,45 +825,52 @@ renderErrorPage err =
                 Http.BadUrl url ->
                     url ++ " is not a valid URL."
                 Http.Timeout ->
-                    "The request timed out."
+                    "the request timed out."
                 Http.NetworkError ->
-                    "There was some kind of network error."
+                    "there was a problem with the network."
                 Http.BadStatus resp ->
-                    "The request returned Status "
+                    "the request returned "
                         ++ toString resp.status.code
                         ++ " "
                         ++ resp.status.message
                         ++ "."
                 Http.BadPayload msg resp ->
-                    "The results came back in a format I wasn't expecting."
+                    "the results came back in a format I wasn't expecting."
 
         content : List (Html Msg)
         content =
-            [ Html.p []
-                [ Html.text "Sorry, I couldn't complete your request. "
-                , Html.text reason
-                , Html.text " Maybe head "
-                , Html.a
-                    [ Events.onClick Start
-                    , Attributes.href "javascript:;"
+            [ Html.div
+                [ Attributes.class "error-message" ]
+                [ Html.p
+                    [ Attributes.class "larger" ]
+                    [ Html.text "Sorry, I couldn't complete your request:"
+                    , Html.br [] []
+                    , Html.text reason
                     ]
-                    [ Html.text "back to the homepage" ]
-                , Html.text " and try again."
-                ]
-            , Html.p []
-                [ Html.text "If this keeps happening, feel free to "
-                , Html.a
-                    [ Attributes.href "https://twitter.com/deepilla"
-                    , Attributes.target "_blank"
+                , Html.p
+                    [ Attributes.class "large" ]
+                    [ Html.text "You can head "
+                    , Html.a
+                        [ Events.onClick Start
+                        , Attributes.href "javascript:;"
+                        ]
+                        [ Html.text "back to the homepage" ]
+                    , Html.text " and try again."
+                    , Html.br [] []
+                    , Html.text "If it keeps happening, feel free to "
+                    , Html.a
+                        [ Attributes.href "https://twitter.com/deepilla"
+                        , Attributes.target "_blank"
+                        ]
+                        [ Html.text "drop me a line" ]
+                    , Html.text "."
                     ]
-                    [ Html.text "drop me a line" ]
-                , Html.text "."
                 ]
             ]
     in
     renderPage
         { blankPage
-            | title = "Oh Sheesh, Y'all!"
+            | title = "Oh Sheesh, Y'all :("
             , content = content
             , menuitems = defaultLinks
         }
@@ -911,10 +879,17 @@ renderErrorPage err =
 renderMyPetitionsPage : PetitionList -> PetitionList -> Html Msg
 renderMyPetitionsPage saved recent =
     let
+        urlToMsg : String -> Msg
+        urlToMsg url =
+            BatchUpdate
+                [ HideModal
+                , LoadPetition False url
+                ]
+
         renderPetitions : String -> PetitionList -> Html Msg
         renderPetitions defaultMsg petitions =
             petitions
-                |> renderPetitionListModal
+                |> renderPetitionListWithMsg urlToMsg
                 |> Maybe.withDefault (Html.p [] [ Html.text defaultMsg ])
 
         content : List (Html Msg)
@@ -949,7 +924,7 @@ renderFAQPage =
 
         answers : List (List (Html Msg))
         answers =
-            List.repeat (List.length questions) [ Html.text "To be written..." ]
+            List.map (always [ Html.text "To be written..." ]) questions
 
         render : String -> List (Html Msg) -> List (Html Msg)
         render question answer =
@@ -999,9 +974,9 @@ renderFooter =
 
 renderPetitionSummary : Petition -> ReportOptions -> List (Html Msg)
 renderPetitionSummary petition opts =
-    [ renderPercentages petition
-    , renderTopCountries petition opts
-    , renderUkRegions petition opts
+    [ renderPercentages petition.signatures petition.countries
+    , renderTopCountries 10 opts.topCountryFilter petition.countries
+    , renderConstituencies opts.constituencyGrouping petition.constituencies
     ]
 
 
@@ -1017,12 +992,10 @@ renderPetitionDetail petition =
             case state of
                 Open ->
                     "Open"
-                Closed ->
+                Closed _ ->
                     "Closed"
-                Rejected ->
+                Rejected _ ->
                     "Rejected"
-                Other state ->
-                    capitalise state
 
         linkToPetition : Html Msg
         linkToPetition =
@@ -1032,7 +1005,7 @@ renderPetitionDetail petition =
                 , Attributes.class "button"
                 , Attributes.title ("View this petition on " ++ baseUrl)
                 ]
-                [ Html.text "View petition" ]
+                [ Html.text "Open this petition" ]
     in
     [ Html.ol
         [ Attributes.class "meta" ]
@@ -1068,7 +1041,7 @@ renderPetitionCountries petition opts =
 
         count : Int
         count =
-            List.length petition.countries
+            List.length data
 
         total : Int
         total =
@@ -1092,15 +1065,15 @@ renderPetitionCountries petition opts =
                 , title = Just "Sort by Country"
                 , align = Nothing
                 , span = Nothing
-                , msg = Just (SortCountryData ByCountry)
-                , icon = Just (iconClass ByCountry)
+                , msg = Just (SortCountryData SortByCountry)
+                , icon = Just (iconClass SortByCountry)
                 }
             ,   { text = "Signatures"
                 , title = Just "Sort by Signatures"
                 , align = Just Center
                 , span = Nothing
-                , msg = Just (SortCountryData BySignatures)
-                , icon = Just (iconClass BySignatures)
+                , msg = Just (SortCountryData SortBySignatures)
+                , icon = Just (iconClass SortBySignatures)
                 }
             ,   { text = "Signatures (%)"
                 , title = Nothing
@@ -1131,7 +1104,7 @@ renderPetitionCountries petition opts =
                 }
             ]
 
-        footerRow : String -> Int -> List (Cell a)
+        footerRow : String -> Int -> List (Cell (List a))
         footerRow label amount =
             [
                 { value = always label
@@ -1151,7 +1124,7 @@ renderPetitionCountries petition opts =
                 }
             ]
 
-        footers : List (Row (List Country))
+        footers : List (List (Cell (List Country)))
         footers =
             if total /= petition.signatures then
                 [ footerRow "Total" total
@@ -1188,7 +1161,7 @@ renderPetitionConstituencies petition opts =
 
         count : Int
         count =
-            List.length petition.constituencies
+            List.length data
 
         total : Int
         total =
@@ -1221,20 +1194,6 @@ renderPetitionConstituencies petition opts =
                     |> Maybe.map thousands
                     |> Maybe.withDefault "Unknown")
 
-        country : Constituency -> String
-        country constituency =
-            constituency.info
-                |> Maybe.map .country
-                |> Maybe.map countryString
-                |> Maybe.withDefault ""
-
-        region : Constituency -> String
-        region constituency =
-            constituency.info
-                |> Maybe.andThen .region
-                |> Maybe.map regionString
-                |> Maybe.withDefault ""
-
         headers : List Header
         headers =
             [
@@ -1242,15 +1201,15 @@ renderPetitionConstituencies petition opts =
                 , title = Just "Sort by Constituency"
                 , align = Nothing
                 , span = Nothing
-                , msg = Just (SortConstituencyData ByConstituency)
-                , icon = Just (iconClass ByConstituency)
+                , msg = Just (SortConstituencyData SortByConstituency)
+                , icon = Just (iconClass SortByConstituency)
                 }
             ,   { text = "Country"
                 , title = Just "Sort by Country"
                 , align = Nothing
                 , span = Nothing
-                , msg = Just (SortConstituencyData ByCountry)
-                , icon = Just (iconClass ByCountry)
+                , msg = Just (SortConstituencyData SortByCountry)
+                , icon = Just (iconClass SortByCountry)
                 }
             ,   { text = "Region"
                 , title = Nothing
@@ -1263,8 +1222,8 @@ renderPetitionConstituencies petition opts =
                 , title = Just "Sort data by Signatures"
                 , align = Just Center
                 , span = Nothing
-                , msg = Just (SortConstituencyData BySignatures)
-                , icon = Just (iconClass BySignatures)
+                , msg = Just (SortConstituencyData SortBySignatures)
+                , icon = Just (iconClass SortBySignatures)
                 }
             ,   { text = "Signatures (%)"
                 , title = Nothing
@@ -1283,12 +1242,12 @@ renderPetitionConstituencies petition opts =
                 , align = Nothing
                 , span = Nothing
                 }
-            ,   { value = country
+            ,   { value = getConstituencyCountryWithDefault ""
                 , title = Nothing
                 , align = Nothing
                 , span = Nothing
                 }
-            ,   { value = region
+            ,   { value = getConstituencyRegionWithDefault ""
                 , title = Nothing
                 , align = Nothing
                 , span = Nothing
@@ -1305,7 +1264,7 @@ renderPetitionConstituencies petition opts =
                 }
             ]
 
-        footerRow : String -> Int -> List (Cell a)
+        footerRow : String -> Int -> List (Cell (List a))
         footerRow label amount =
             [
                 { value = always label
@@ -1325,7 +1284,7 @@ renderPetitionConstituencies petition opts =
                 }
             ]
 
-        footers : List (Row (List Constituency))
+        footers : List (List (Cell (List Constituency)))
         footers =
             if total /= ukTotal then
                 [ footerRow "Total" total
@@ -1353,20 +1312,20 @@ renderPetitionConstituencies petition opts =
     ]
 
 
-renderPercentages : Petition -> Html Msg
-renderPercentages petition =
+renderPercentages : Int -> List Country -> Html Msg
+renderPercentages officialTotal countries =
     let
         total : Int
         total =
-            totalSignatures petition.countries
+            totalSignatures countries
 
         count : Int
         count =
-            List.length petition.countries
+            List.length countries
 
         -- NOTE: Type annotations don't work with tuples.
         -- (ukCountries, nonUkCountries) : (List Country, List Country)
-        (ukCountries, nonUkCountries) = List.partition .isUK petition.countries
+        (ukCountries, nonUkCountries) = List.partition .isUK countries
 
         pie : String -> Int -> Html Msg
         pie label signatures =
@@ -1416,7 +1375,7 @@ renderPercentages petition =
             , Html.span
                 [ Attributes.class "highlight" ]
                 [ Html.text (thousands total) ]
-            , Html.text (" " ++ (pluraliseSignatures total) ++ " in ")
+            , Html.text (" " ++ pluraliseSignatures total ++ " in ")
             , Html.span
                 [ Attributes.class "highlight" ]
                 [ Html.text (toString count) ]
@@ -1429,12 +1388,12 @@ renderPercentages petition =
         ]
 
 
-renderTopCountries : Petition -> ReportOptions -> Html Msg
-renderTopCountries petition opts =
+renderTopCountries : Int -> CountryFilter -> List Country -> Html Msg
+renderTopCountries limit countryFilter countries =
     let
         filter : (Country -> Bool)
         filter =
-            case opts.topCountryFilter of
+            case countryFilter of
                 All ->
                     always True
                 NonUK ->
@@ -1442,13 +1401,12 @@ renderTopCountries petition opts =
                 NonEU ->
                     not << .isEU
 
-        limit : Int
-        limit =
-            10
-
         data : List Country
         data =
-            petition.countries
+            -- NOTE: The order of countries with the same
+            -- number of signatures is not guaranteed and
+            -- may change from render to render.
+            countries
                 |> List.filter filter
                 |> sort Desc .signatures
                 |> List.take limit
@@ -1468,8 +1426,8 @@ renderTopCountries petition opts =
             , "All Countries"
             ]
 
-        radioMsgs : List CountryFilter
-        radioMsgs =
+        radioValues : List CountryFilter
+        radioValues =
             [ NonUK
             , NonEU
             , All
@@ -1477,7 +1435,7 @@ renderTopCountries petition opts =
 
         suffix : String
         suffix =
-            case opts.topCountryFilter of
+            case countryFilter of
                 All ->
                     "Countries"
                 NonUK ->
@@ -1493,54 +1451,49 @@ renderTopCountries petition opts =
             , Html.span
                 [ Attributes.class "options" ]
                 (renderRadioGroup
-                    "filterTopCountries"
+                    "filter-countries"
                     radioLabels
-                    (List.map FilterTopCountries radioMsgs)
-                    (List.map ((==) opts.topCountryFilter) radioMsgs)
+                    (List.map FilterTopCountries radioValues)
+                    (List.map ((==) countryFilter) radioValues)
                 )
             ]
             , renderBarChart barLabels barValues
         ]
 
 
-renderUkRegions : Petition -> ReportOptions -> Html Msg
-renderUkRegions petition opts =
+renderConstituencies : GroupBy -> List Constituency -> Html Msg
+renderConstituencies groupBy constituencies =
     let
-        country : Constituency -> String
-        country constituency =
-            constituency.info
-                |> Maybe.map .country
-                |> Maybe.map countryString
-                |> Maybe.withDefault "Unknown"
+        getCountry : Constituency -> String
+        getCountry =
+            getConstituencyCountryWithDefault "Unknown"
 
-        region : Constituency -> String
-        region constituency =
-            constituency.info
-                |> Maybe.andThen .region
-                |> Maybe.map regionString
-                |> Maybe.withDefault (country constituency)
+        getRegion : Constituency -> String
+        getRegion constituency =
+            getConstituencyRegionWithDefault (getCountry constituency) constituency
 
-        key : (Constituency -> String)
-        key =
-            if opts.showRegions then
-                region
-            else
-                country
+        getKey : Constituency -> String
+        getKey =
+            case groupBy of
+                GroupByCountry ->
+                    getCountry
+                GroupByRegion ->
+                    getRegion
 
         updateDict : (Constituency -> String) -> Constituency -> Dict String Int -> Dict String Int
         updateDict key constituency =
             let
-                update : Int -> Maybe Int -> Maybe Int
-                update value total =
+                updateValue : Int -> Maybe Int -> Maybe Int
+                updateValue value total =
                     Just ((Maybe.withDefault 0 total) + value)
             in
-            Dict.update (key constituency) (update constituency.signatures)
+            Dict.update (key constituency) (updateValue constituency.signatures)
 
         -- NOTE: Type annotations don't work with tuples.
         -- (barLabels, barValues) : (List String, List Int)
         (barLabels, barValues) =
-            petition.constituencies
-                |> List.foldr (updateDict key) Dict.empty
+            constituencies
+                |> List.foldl (updateDict getKey) Dict.empty
                 |> Dict.toList
                 |> sort Desc Tuple.second
                 |> List.unzip
@@ -1551,26 +1504,32 @@ renderUkRegions petition opts =
             , "By Country"
             ]
 
-        radioMsgs : List Bool
-        radioMsgs =
-            [ True
-            , False
+        radioValues : List GroupBy
+        radioValues =
+            [ GroupByRegion
+            , GroupByCountry
             ]
+
+        suffix : String
+        suffix =
+            case groupBy of
+                GroupByRegion ->
+                    "Region"
+                GroupByCountry ->
+                    "Country"
     in
     Html.div []
         [ Html.div
             [ Attributes.class "bar-header" ]
             [ Html.h3 []
-                [ Html.text "UK Signatures By "
-                , Html.text (if opts.showRegions then "Region" else "Country")
-                ]
+                [ Html.text ("UK Signatures By " ++ suffix) ]
             , Html.span
                 [ Attributes.class "options" ]
                 (renderRadioGroup
-                    "showRegions"
+                    "group-constituencies"
                     radioLabels
-                    (List.map ShowRegions radioMsgs)
-                    (List.map ((==) opts.showRegions) radioMsgs)
+                    (List.map GroupConstituencies radioValues)
+                    (List.map ((==) groupBy) radioValues)
                 )
             ]
         , renderBarChart barLabels barValues
@@ -1594,25 +1553,33 @@ renderInput currentValue =
 
         isValid : Bool
         isValid =
-            -- TODO: Need a better check for valid URLs (regex?).
+            -- TODO: A better check for valid URLs (regex?).
             (String.startsWith "http://" url) || (String.startsWith "https://" url)
     in
     Html.form
         [ Events.onSubmit (LoadPetition False url)
         , Attributes.class "textbox"
         ]
-        [ Html.input
+        [ Html.label
+            [ Attributes.for "textbox-input" ]
+            [ renderIcon "icon-search"
+            , Html.span
+                [ Attributes.class "iconed" ]
+                [ Html.text "URL" ]
+            ]
+        , Html.input
             [ Events.onInput UpdateInput
+            , Attributes.id "textbox-input"
             , Attributes.autofocus True
-            , Attributes.placeholder ("e.g. " ++ defaultUrl)
+            , Attributes.placeholder "Enter the URL of a petition"
             , Attributes.value currentValue
             , Attributes.accesskey 'u'
             ] []
         , Html.button
-            [ Attributes.disabled (not isValid)
-            , Attributes.title "Fetch data for this petition"
+            [ Attributes.title "Fetch data for this petition"
+            , Attributes.disabled (not isValid)
             ]
-            [ renderIcon "icon-download" ]
+            [ Html.text "Go" ]
         ]
 
 
@@ -1639,19 +1606,6 @@ renderPetitionList =
     renderPetitionListWithMsg (LoadPetition False)
 
 
-renderPetitionListModal : PetitionList -> Maybe (Html Msg)
-renderPetitionListModal =
-    let
-        urlToMsg : String -> Msg
-        urlToMsg url =
-            BatchUpdate
-                [ HideModal
-                , LoadPetition False url
-                ]
-    in
-    renderPetitionListWithMsg urlToMsg
-
-
 renderBarChart : List String -> List Int -> Html Msg
 renderBarChart labels values =
     let
@@ -1675,7 +1629,7 @@ renderBarChart labels values =
                     (toString (percent + 1.0)) ++ "%"
             in
             Html.tr
-                [ Attributes.title (label ++ ": " ++ (thousands value) ++ " " ++ (pluraliseSignatures value)) ]
+                [ Attributes.title (label ++ ": " ++ thousands value ++ " " ++ pluraliseSignatures value) ]
                 [ Html.td
                     [ Attributes.class "label" ]
                     [ Html.text label ]
@@ -1741,72 +1695,90 @@ type alias Header =
     }
 
 
-type alias Row a =
-    List (Cell a)
+alignAttribute : Align -> Html.Attribute Msg
+alignAttribute align =
+    Attributes.style [("text-align", String.toLower (toString align))]
 
 
--- TODO: Fix this type annotation. It causes a compilation
--- error in Elm 0.18.
--- renderTable : List Header -> Row a -> List (Row (List a)) -> List a -> Html Msg
-renderTable headers cells footers data =
+th : Header -> Html Msg
+th header =
     let
-        alignAttribute : Align -> Html.Attribute Msg
-        alignAttribute align =
-            Attributes.style [("text-align", String.toLower (toString align))]
+        linkTo : Msg -> List (Html Msg) -> Html Msg
+        linkTo msg =
+            Html.a
+                [ Events.onClick msg
+                , Attributes.href "javascript:;"
+                ]
 
-        th : Header -> Html Msg
-        th header =
-            let
-                maybeLink : List (Html Msg) -> List (Html Msg)
-                maybeLink content =
-                    case header.msg of
-                        Just msg ->
-                            [ Html.a
-                                [ Events.onClick msg
-                                , Attributes.href "javascript:;"
-                                ]
-                                content
-                            ]
-                        Nothing ->
-                            content
-            in
-            Html.th
-                (filterMaybes
-                    [ Maybe.map Attributes.title header.title
-                    , Maybe.map Attributes.colspan header.span
-                    , Maybe.map alignAttribute header.align
-                    ]
-                )
-                (maybeLink
-                    [ Html.text header.text
-                    , maybeRender (Maybe.map renderIcon header.icon)
-                    ]
-                )
-
-        td : Cell a -> a -> Html Msg
-        td cell item =
-            Html.td
-                (filterMaybes
-                    [ Maybe.map (\f -> Attributes.title (f item)) cell.title
-                    , Maybe.map Attributes.colspan cell.span
-                    , Maybe.map alignAttribute cell.align
-                    ]
-                )
-                [ Html.text (cell.value item) ]
-
-        tr : List (Cell a) -> a -> Html Msg
-        tr cells item =
-            Html.tr []
-                (List.map (\cell -> td cell item) cells)
+        maybeLink : Maybe Msg -> List (Html Msg) -> List (Html Msg)
+        maybeLink msg contents =
+            case msg of
+                Just msg ->
+                    [ linkTo msg contents ]
+                Nothing ->
+                    contents
     in
+    Html.th
+        (filterMaybes
+            [ Maybe.map Attributes.title header.title
+            , Maybe.map Attributes.colspan header.span
+            , Maybe.map alignAttribute header.align
+            ]
+        )
+        (maybeLink header.msg
+            [ Html.text header.text
+            , maybeRender (Maybe.map renderIcon header.icon)
+            ]
+        )
+
+
+thead : List Header -> Maybe (Html Msg)
+thead headers =
+    List.map th headers
+        |> listToMaybe
+        |> Maybe.map (\ths -> [ Html.tr [] ths ])
+        |> Maybe.map (Html.thead [])
+
+
+td : Cell a -> a -> Html Msg
+td cell item =
+    Html.td
+        (filterMaybes
+            [ Maybe.map (\title -> Attributes.title (title item)) cell.title
+            , Maybe.map Attributes.colspan cell.span
+            , Maybe.map alignAttribute cell.align
+            ]
+        )
+        [ Html.text (cell.value item) ]
+
+
+tr : List (Cell a) -> a -> Html Msg
+tr cells item =
+    Html.tr []
+        (List.map (\cell -> td cell item) cells)
+
+
+tbody : List (Cell a) -> List a -> Maybe (Html Msg)
+tbody cells items =
+    List.map (tr cells) items
+        |> listToMaybe
+        |> Maybe.map (Html.tbody [])
+
+
+tfoot : List (List (Cell a)) -> a -> Maybe (Html Msg)
+tfoot rows items =
+    List.map (\cells -> tr cells items) rows
+        |> listToMaybe
+        |> Maybe.map (Html.tfoot [])
+
+
+renderTable : List Header -> List (Cell a) -> List (List (Cell (List a))) -> List a -> Html Msg
+renderTable headers cells footers items =
     Html.table
         [ Attributes.class "tabular" ]
-        [ Html.thead []
-            [ Html.tr [] (List.map th headers) ]
-        , Html.tfoot []
-            (List.map (\cells -> tr cells data) footers)
-        , Html.tbody []
-            (List.map (tr cells) data)
+        [ maybeRender (thead headers)
+        , maybeRender (tfoot footers items)
+        , maybeRender (tbody cells items)
         ]
 
 
@@ -1848,36 +1820,30 @@ navigationLinks currentView =
     ]
 
 
-petitionLinks : String -> String -> Bool -> List Link
-petitionLinks url title isSaved =
-    let
-        -- NOTE: Type annotations don't work with tuples.
-        -- (String, String, Msg)
-        (saveLabel, saveTitle, saveMsg) =
-            if isSaved then
-                ( "Unsave"
-                , "Remove this petition from My Petitions"
-                , UnsavePetition
-                )
-            else
-                ( "Save"
-                , "Add this petition to My Petitions"
-                , SavePetition
-                )
-    in
+petitionLinks : PetitionList.Item -> Bool -> List Link
+petitionLinks item isSaved =
     [
         { text = "Refresh"
-        , msg = LoadPetition True url
+        , msg = LoadPetition True item.url
         , title = Just "Reload data for this petition"
         , icon = Nothing
         , class = Nothing
         }
-    ,   { text = saveLabel
-        , msg = saveMsg (PetitionList.Item url title)
-        , title = Just saveTitle
-        , icon = Nothing
-        , class = Nothing
-        }
+    ,   (if isSaved then
+            { text = "Unsave"
+            , msg = UnsavePetition item
+            , title = Just "Remove this petition from My Petitions"
+            , icon = Nothing
+            , class = Nothing
+            }
+        else
+            { text = "Save"
+            , msg = SavePetition item
+            , title = Just "Add this petition to My Petitions"
+            , icon = Nothing
+            , class = Nothing
+            }
+        )
     ]
 
 
@@ -1929,11 +1895,11 @@ init config =
             , "saved.petitions"
             ]
 
-        loadCmd : Cmd Msg
-        loadCmd =
+        initialFetch : Cmd Msg
+        initialFetch =
             config.id
                 |> Maybe.map urlWithId
-                |> Maybe.map getPetition
+                |> Maybe.map fetchPetition
                 |> Maybe.withDefault Cmd.none
 
         initialState : AppState
@@ -1952,7 +1918,7 @@ init config =
         cmd : Cmd Msg
         cmd =
             List.map getLocalStorage localStorageKeys
-                |> (::) loadCmd
+                |> (::) initialFetch
                 |> Cmd.batch
     in
     (,) model cmd
@@ -1968,11 +1934,19 @@ main =
         }
 
 
--- UTILS
--- TODO: Think about moving some of these into modules.
+-- HELPER FUNCTIONS
 
 
--- JSON Utils
+sort : SortOrder -> (a -> comparable) -> List a -> List a
+sort order property =
+    case order of
+        Asc ->
+            List.sortBy property
+        Desc ->
+            List.reverse << List.sortBy property
+
+
+-- JSON Helpers
 
 
 dateDecoder : Json.Decoder Date
@@ -2005,7 +1979,7 @@ linesDecoder =
     Json.map lines Json.string
 
 
--- Maybe Utils
+-- Maybe Helpers
 
 
 filterMaybes : List (Maybe a) -> List a
@@ -2021,7 +1995,7 @@ listToMaybe list =
         Just list
 
 
--- Number Utils
+-- Number Helpers
 
 dps : Int -> Float -> String
 dps dps value =
@@ -2132,7 +2106,7 @@ formatPercentage format total value =
     format (percentageOf total value) ++ "%"
 
 
--- Date Utils
+-- Date Helpers
 
 
 dayToString : Date.Day -> String
@@ -2192,7 +2166,7 @@ formatDate date =
         ++ toString (Date.year date)
 
 
--- String Utils
+-- String Helpers
 
 
 capitalise : String -> String
@@ -2207,21 +2181,6 @@ capitalise string =
 pluralise : String -> String -> Int -> String
 pluralise singular plural count =
     if count == 1 then singular else plural
-
-
-pluraliseCountries : Int -> String
-pluraliseCountries =
-    pluralise "country" "countries"
-
-
-pluraliseConstituencies : Int -> String
-pluraliseConstituencies =
-    pluralise "constituency" "constituencies"
-
-
-pluraliseSignatures : Int -> String
-pluraliseSignatures =
-    pluralise "signature" "signatures"
 
 
 withSuffix : String -> String -> String
@@ -2240,52 +2199,40 @@ withoutSuffix suffix string =
         string
 
 
-withJsonExtension : String -> String
-withJsonExtension =
-    withSuffix ".json"
-
-
-withoutJsonExtension : String -> String
-withoutJsonExtension =
-    withoutSuffix ".json"
-
-
--- Petition Utils
-
-
-sort : SortOrder -> (a -> comparable) -> List a -> List a
-sort order property =
-    case order of
-        Asc ->
-            List.sortBy property
-        Desc ->
-            List.reverse << List.sortBy property
+-- Petition Helpers
 
 
 sortCountries : SortOptions -> List Country -> List Country
 sortCountries opts =
     case opts.by of
-        ByCountry ->
+        SortByCountry ->
             sort opts.order .name
-        BySignatures ->
+        SortBySignatures ->
             sort opts.order .signatures
-        ByConstituency ->
+        SortByConstituency ->
             identity
 
 
 sortConstituencies : SortOptions -> List Constituency -> List Constituency
 sortConstituencies opts =
+    let
+        getCountry : Constituency -> String
+        getCountry constituency =
+            getConstituencyCountryWithDefault "" constituency
+                ++ "__"
+                ++ constituency.name
+    in
     case opts.by of
-        ByConstituency ->
+        SortByConstituency ->
             sort opts.order .name
-        ByCountry ->
-            sort opts.order .code
-        BySignatures ->
+        SortByCountry ->
+            sort opts.order getCountry
+        SortBySignatures ->
             sort opts.order .signatures
 
 
-countryString : Constituencies.Country -> String
-countryString country =
+countryToString : Constituencies.Country -> String
+countryToString country =
     case country of
         Constituencies.Eng ->
             "England"
@@ -2297,8 +2244,8 @@ countryString country =
             "Wales"
 
 
-regionString : Constituencies.Region -> String
-regionString region =
+regionToString : Constituencies.Region -> String
+regionToString region =
     case region of
         Constituencies.EMid ->
             "E. Midlands"
@@ -2318,6 +2265,55 @@ regionString region =
             "W. Midlands"
         Constituencies.Yorks ->
             "Yorkshire"
+
+
+getConstituencyCountry : Constituency -> Maybe String
+getConstituencyCountry constituency =
+    constituency.info
+        |> Maybe.map .country
+        |> Maybe.map countryToString
+
+
+getConstituencyCountryWithDefault : String -> Constituency -> String
+getConstituencyCountryWithDefault default constituency =
+    Maybe.withDefault default (getConstituencyCountry constituency)
+
+
+getConstituencyRegion : Constituency -> Maybe String
+getConstituencyRegion constituency =
+    constituency.info
+        |> Maybe.andThen .region
+        |> Maybe.map regionToString
+
+
+getConstituencyRegionWithDefault : String -> Constituency -> String
+getConstituencyRegionWithDefault default constituency =
+    Maybe.withDefault default (getConstituencyRegion constituency)
+
+
+pluraliseCountries : Int -> String
+pluraliseCountries =
+    pluralise "country" "countries"
+
+
+pluraliseConstituencies : Int -> String
+pluraliseConstituencies =
+    pluralise "constituency" "constituencies"
+
+
+pluraliseSignatures : Int -> String
+pluraliseSignatures =
+    pluralise "signature" "signatures"
+
+
+withJsonExtension : String -> String
+withJsonExtension =
+    withSuffix ".json"
+
+
+withoutJsonExtension : String -> String
+withoutJsonExtension =
+    withoutSuffix ".json"
 
 
 totalSignatures : List { a | signatures : Int } -> Int
@@ -2345,21 +2341,20 @@ urlWithParams params =
     url (baseUrl ++ "/petitions.json") params
 
 
--- TODO: Replace this function with Http.url if/when
--- that function makes it into Elm 0.18.
+-- TODO: Replace these functions with Http.url
+-- if/when that function makes it back into Elm 0.18.
 -- See https://groups.google.com/forum/#!topic/elm-discuss/XaIr96e8qXk
 -- and https://github.com/elm-lang/http/pull/15
+queryPair : (String, String) -> String
+queryPair (key,value) =
+    queryEscape key ++ "=" ++ queryEscape value
+
+queryEscape : String -> String
+queryEscape string =
+    String.join "+" (String.split "%20" (Http.encodeUri string))
+
 url : String -> List (String, String) -> String
 url baseUrl args =
-    let
-        queryPair : (String, String) -> String
-        queryPair (key,value) =
-            queryEscape key ++ "=" ++ queryEscape value
-
-        queryEscape : String -> String
-        queryEscape string =
-            String.join "+" (String.split "%20" (Http.encodeUri string))
-    in
     case args of
         [] ->
             baseUrl

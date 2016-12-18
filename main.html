@@ -15,13 +15,22 @@
 <script src="assets/js/elm.js"></script>
 <script>
     (function() {
-        var elm = Elm.Main.fullscreen({
-            id: null,
-            logging: true,
-        });
+        // Return the query parameter for the given key.
+        // See https://developers.google.com/web/updates/2016/01/urlsearchparams?hl=en
+        function getURLParameter(param) {
+            if (!window.location.search) {
+                return;
+            }
 
-        // Feature detect localStorage and only connect the
-        // Elm ports if localStorage is available.
+            var m = new RegExp(param + '=([^&]*)').exec(window.location.search.substring(1));
+            if (!m) {
+                return;
+            }
+    
+            return decodeURIComponent(m[1]);
+        }
+
+        // Feature detect localStorage.
         // See https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API/Using_the_Web_Storage_API 
         function localStorageAvailable() {
             try {
@@ -36,6 +45,28 @@
                 return false;
             }
         }
+
+        function parseBool(value) {
+            if (!value || typeof value !== "string")
+                return;
+
+            switch (value.toLowerCase()) {
+                case "true":
+                case "yes":
+                    return true;
+                case "false":
+                case "no":
+                    return false;
+            }
+        }
+
+        var id = getURLParameter("id");
+        var log = parseBool(getURLParameter("debug"));
+
+        var elm = Elm.Main.fullscreen({
+            id: id || null,
+            logging: log || false,
+        });
 
         if (localStorageAvailable()) {
             elm.ports.getLocalStorage.subscribe(function(key) {

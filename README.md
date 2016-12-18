@@ -10,9 +10,8 @@ sass [--watch] [--sourcemap=none] src/scss/main.scss:assets/css/main.css
 #### Features
 
 - Search for a petition
-- Handle edge cases (no signatures, 1 signature, all signatures in country etc.)
+- Handle edge cases (no signatures, 1 signature, all signatures in 1 country etc.)
 - Remove petitions from saved/recent petition lists
-- Auto-load petitions specified in the url query parameters
 - Show a "try again" link when petitions fail to load
 - At the minimum, warn the user if localStorage is unavailable
 
@@ -23,4 +22,4 @@ sass [--watch] [--sourcemap=none] src/scss/main.scss:assets/css/main.css
 #### Project
 
 - Tests
-- Automated build and deploy
+- Automated build (Brunch or Gulp?)

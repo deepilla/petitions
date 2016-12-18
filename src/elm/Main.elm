@@ -1070,14 +1070,14 @@ renderPetitionCountries petition opts =
                 }
             ,   { text = "Signatures"
                 , title = Just "Sort by Signatures"
-                , align = Just Center
+                , align = Just AlignCenter
                 , span = Nothing
                 , msg = Just (SortCountryData SortBySignatures)
                 , icon = Just (iconClass SortBySignatures)
                 }
             ,   { text = "Signatures (%)"
                 , title = Nothing
-                , align = Just Center
+                , align = Just AlignCenter
                 , span = Nothing
                 , msg = Nothing
                 , icon = Nothing
@@ -1094,12 +1094,12 @@ renderPetitionCountries petition opts =
                 }
             ,   { value = .signatures >> thousands
                 , title = Nothing
-                , align = Just Center
+                , align = Just AlignCenter
                 , span = Nothing
                 }
             ,   { value = .signatures >> formatPercentage (dps 1) total
                 , title = Just (.signatures >> formatPercentage (dps 4) total)
-                , align = Just Center
+                , align = Just AlignCenter
                 , span = Nothing
                 }
             ]
@@ -1114,7 +1114,7 @@ renderPetitionCountries petition opts =
                 }
             ,   { value = always (thousands amount)
                 , title = Nothing
-                , align = Just Center
+                , align = Just AlignCenter
                 , span = Nothing
                 }
             ,   { value = always ""
@@ -1219,15 +1219,15 @@ renderPetitionConstituencies petition opts =
                 , icon = Nothing
                 }
             ,   { text = "Signatures"
-                , title = Just "Sort data by Signatures"
-                , align = Just Center
+                , title = Just "Sort by Signatures"
+                , align = Just AlignCenter
                 , span = Nothing
                 , msg = Just (SortConstituencyData SortBySignatures)
                 , icon = Just (iconClass SortBySignatures)
                 }
             ,   { text = "Signatures (%)"
                 , title = Nothing
-                , align = Just Center
+                , align = Just AlignCenter
                 , span = Nothing
                 , msg = Nothing
                 , icon = Nothing
@@ -1254,12 +1254,12 @@ renderPetitionConstituencies petition opts =
                 }
             ,   { value = .signatures >> thousands
                 , title = Nothing
-                , align = Just Center
+                , align = Just AlignCenter
                 , span = Nothing
                 }
             ,   { value = .signatures >> formatPercentage (dps 1) total
                 , title = Just (.signatures >> formatPercentage (dps 4) total)
-                , align = Just Center
+                , align = Just AlignCenter
                 , span = Nothing
                 }
             ]
@@ -1274,7 +1274,7 @@ renderPetitionConstituencies petition opts =
                 }
             ,   { value = always (thousands amount)
                 , title = Nothing
-                , align = Just Center
+                , align = Just AlignCenter
                 , span = Nothing
                 }
             ,   { value = always ""
@@ -1672,9 +1672,9 @@ renderRadioGroup name labels msgs checks =
 
 
 type Align
-    = Left
-    | Right
-    | Center
+    = AlignLeft
+    | AlignRight
+    | AlignCenter
 
 
 type alias Cell a =
@@ -1697,7 +1697,18 @@ type alias Header =
 
 alignAttribute : Align -> Html.Attribute Msg
 alignAttribute align =
-    Attributes.style [("text-align", String.toLower (toString align))]
+    let
+        value : String
+        value =
+            case align of
+                AlignLeft ->
+                    "left"
+                AlignRight ->
+                    "right"
+                AlignCenter ->
+                    "center"
+    in
+    Attributes.style [("text-align", value)]
 
 
 th : Header -> Html Msg
@@ -1765,7 +1776,7 @@ tbody cells items =
         |> Maybe.map (Html.tbody [])
 
 
-tfoot : List (List (Cell a)) -> a -> Maybe (Html Msg)
+tfoot : List (List (Cell (List a))) -> List a -> Maybe (Html Msg)
 tfoot rows items =
     List.map (\cells -> tr cells items) rows
         |> listToMaybe
@@ -1773,12 +1784,12 @@ tfoot rows items =
 
 
 renderTable : List Header -> List (Cell a) -> List (List (Cell (List a))) -> List a -> Html Msg
-renderTable headers cells footers items =
+renderTable headers body footers items =
     Html.table
         [ Attributes.class "tabular" ]
         [ maybeRender (thead headers)
         , maybeRender (tfoot footers items)
-        , maybeRender (tbody cells items)
+        , maybeRender (tbody body items)
         ]
 
 

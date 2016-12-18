@@ -1,6 +1,6 @@
 {
     "version": "1.0.0",
-    "summary": "Download and view signature data from the UK Petitions website",
+    "summary": "A viewer for UK Government Petitions data",
     "repository": "https://github.com/deepilla/petitions.git",
     "license": "MIT",
     "source-directories": [

@@ -14,7 +14,7 @@ Compile Elm code:
 
 Compile Sass:
 
-`sass [--watch] src/scss/main.scss:assets/css/main.css`
+`sass [--watch] src/scss/styles.scss:assets/css/styles.css`
 
 ### TODO
 

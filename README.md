@@ -20,11 +20,13 @@ Compile Sass:
 
 #### Features
 
-- Search for a petition
+- Navigation (via History API and document title)
+- Petition search
+- Transitions between screens
 - Show a "Try again" link when a petition fails to load
-- Warn the user if localStorage is unavailable
-- Add links to petition lists for removing/clearing petitions
-- Make sure edge cases are handled sensibly (no signatures, 1 signature, all signatures in 1 country etc.)
+- Handle edge cases sensibly (e.g. no signatures, 1 signature, all signatures in 1 country)
+- Warn if localStorage is unavailable
+- Add remove/clear petitions links to petition lists
 
 #### Design
 
@@ -32,5 +34,5 @@ Compile Sass:
 
 #### Project
 
-- Automate the build (e.g. with Brunch, Gulp, NPM, make...?)
-- Unit tests (with elm-test)
+- Automated build
+- Tests

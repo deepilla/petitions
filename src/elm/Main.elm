@@ -23,7 +23,7 @@ import PetitionList exposing (PetitionList)
 
 
 type AppState
-    = Home
+    = Initial
     | Loading
     | Loaded Petition
     | Failed Http.Error
@@ -215,7 +215,7 @@ type alias Model =
 initialModel : Model
 initialModel =
     { logging = False
-    , state = Home
+    , state = Initial
     , view = Summary
     , options = defaultReportOptions
     , modal = Nothing
@@ -284,7 +284,7 @@ update msg model =
             let
                 model_ =
                     { model
-                        | state = Home
+                        | state = Initial
                     }
             in
             (,) model_ Cmd.none
@@ -599,7 +599,7 @@ view model =
             renderMyPetitionsPage model.saved model.recent
         Nothing ->
             case model.state of
-                Home ->
+                Initial ->
                     renderHomePage model
                 Loading ->
                     renderLoadingPage
@@ -889,7 +889,7 @@ renderMyPetitionsPage saved recent =
         renderPetitions : String -> PetitionList -> Html Msg
         renderPetitions defaultMsg petitions =
             petitions
-                |> renderPetitionListWithMsg urlToMsg
+                |> renderPetitionListWith urlToMsg
                 |> Maybe.withDefault (Html.p [] [ Html.text defaultMsg ])
 
         content : List (Html Msg)
@@ -1035,17 +1035,17 @@ renderPetitionDetail petition =
 renderPetitionCountries : Petition -> ReportOptions -> List (Html Msg)
 renderPetitionCountries petition opts =
     let
-        data : List Country
-        data =
+        items : List Country
+        items =
             sortCountries opts.countrySortOptions petition.countries
 
         count : Int
         count =
-            List.length data
+            List.length items
 
         total : Int
         total =
-            totalSignatures data
+            totalSignatures items
 
         iconClass : SortBy -> String
         iconClass by =
@@ -1104,8 +1104,8 @@ renderPetitionCountries petition opts =
                 }
             ]
 
-        footerRow : String -> Int -> List (Cell (List a))
-        footerRow label amount =
+        totalRow : String -> Int -> List (Cell (List a))
+        totalRow label amount =
             [
                 { value = always label
                 , title = Nothing
@@ -1124,15 +1124,15 @@ renderPetitionCountries petition opts =
                 }
             ]
 
-        footers : List (List (Cell (List Country)))
-        footers =
+        totals : List (List (Cell (List Country)))
+        totals =
             if total /= petition.signatures then
-                [ footerRow "Total" total
-                , footerRow "Official Total" petition.signatures
-                , footerRow "Difference" (petition.signatures - total)
+                [ totalRow "Total" total
+                , totalRow "Official Total" petition.signatures
+                , totalRow "Difference" (petition.signatures - total)
                 ]
             else
-                [ footerRow "Total" total ]
+                [ totalRow "Total" total ]
     in
     [ Html.h3
         [ Attributes.class "subbed" ]
@@ -1148,24 +1148,24 @@ renderPetitionCountries petition opts =
                 ++ pluraliseCountries count
             )
         ]
-    , renderTable headers body footers data
+    , renderTable headers body totals items
     ]
 
 
 renderPetitionConstituencies : Petition -> ReportOptions -> List (Html Msg)
 renderPetitionConstituencies petition opts =
     let
-        data : List Constituency
-        data =
+        items : List Constituency
+        items =
             sortConstituencies opts.constituencySortOptions petition.constituencies
 
         count : Int
         count =
-            List.length data
+            List.length items
 
         total : Int
         total =
-            totalSignatures data
+            totalSignatures items
 
         ukTotal : Int
         ukTotal =
@@ -1264,8 +1264,8 @@ renderPetitionConstituencies petition opts =
                 }
             ]
 
-        footerRow : String -> Int -> List (Cell (List a))
-        footerRow label amount =
+        totalRow : String -> Int -> List (Cell (List a))
+        totalRow label amount =
             [
                 { value = always label
                 , title = Nothing
@@ -1284,15 +1284,15 @@ renderPetitionConstituencies petition opts =
                 }
             ]
 
-        footers : List (List (Cell (List Constituency)))
-        footers =
+        totals : List (List (Cell (List Constituency)))
+        totals =
             if total /= ukTotal then
-                [ footerRow "Total" total
-                , footerRow "UK Signatures" ukTotal
-                , footerRow "Difference" (ukTotal - total)
+                [ totalRow "Total" total
+                , totalRow "UK Signatures" ukTotal
+                , totalRow "Difference" (ukTotal - total)
                 ]
             else
-                [ footerRow "Total" total ]
+                [ totalRow "Total" total ]
     in
     [ Html.h3
         [ Attributes.class "subbed" ]
@@ -1308,7 +1308,7 @@ renderPetitionConstituencies petition opts =
                 ++ pluraliseConstituencies count
             )
         ]
-    , renderTable headers body footers data
+    , renderTable headers body totals items
     ]
 
 
@@ -1336,9 +1336,9 @@ renderPercentages officialTotal countries =
 
                 displayPercent : Int
                 displayPercent =
-                    if percent > 95.0 && percent < 100.0 then
+                    if percent > 95.0 then
                         floor percent
-                    else if percent < 5.0 && percent > 0.0 then
+                    else if percent < 5.0 then
                         ceiling percent
                     else
                         round percent
@@ -1447,7 +1447,7 @@ renderTopCountries limit countryFilter countries =
         [ Html.div
             [ Attributes.class "bar-header" ]
             [ Html.h3 []
-                [ Html.text ("Top " ++ (toString limit) ++ " " ++ suffix) ]
+                [ Html.text ("Top " ++ toString limit ++ " " ++ suffix) ]
             , Html.span
                 [ Attributes.class "options" ]
                 (renderRadioGroup
@@ -1583,13 +1583,13 @@ renderInput currentValue =
         ]
 
 
-renderPetitionListWithMsg : (String -> Msg) -> PetitionList -> Maybe (Html Msg)
-renderPetitionListWithMsg urlToMsg petitions =
+renderPetitionListWith : (String -> Msg) -> PetitionList -> Maybe (Html Msg)
+renderPetitionListWith onClick petitions =
     let
         linkToPetition : PetitionList.Item -> Html Msg
         linkToPetition petition =
             Html.a
-                [ Events.onClick (urlToMsg petition.url)
+                [ Events.onClick (onClick petition.url)
                 , Attributes.href "javascript:;"
                 ]
                 [ Html.text petition.title ]
@@ -1603,7 +1603,7 @@ renderPetitionListWithMsg urlToMsg petitions =
 
 renderPetitionList : PetitionList -> Maybe (Html Msg)
 renderPetitionList =
-    renderPetitionListWithMsg (LoadPetition False)
+    renderPetitionListWith (LoadPetition False)
 
 
 renderBarChart : List String -> List Int -> Html Msg
@@ -1784,11 +1784,11 @@ tfoot rows items =
 
 
 renderTable : List Header -> List (Cell a) -> List (List (Cell (List a))) -> List a -> Html Msg
-renderTable headers body footers items =
+renderTable headers body totals items =
     Html.table
         [ Attributes.class "tabular" ]
         [ maybeRender (thead headers)
-        , maybeRender (tfoot footers items)
+        , maybeRender (tfoot totals items)
         , maybeRender (tbody body items)
         ]
 
@@ -1917,7 +1917,7 @@ init config =
         initialState =
             config.id
                 |> Maybe.map (always Loading)
-                |> Maybe.withDefault Home
+                |> Maybe.withDefault Initial
 
         model : Model
         model =

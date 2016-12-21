@@ -1,0 +1,44 @@
+{
+  "name": "petitions",
+  "version": "1.0.0",
+  "description": "A viewer for UK Government Petitions data",
+  "main": "index.html",
+  "dependencies": {},
+  "devDependencies": {
+    "chokidar-cli": "^1.2.0",
+    "copyfiles": "^1.0.0",
+    "elm": "^0.18.0",
+    "node-sass": "^4.1.1",
+    "npm-run-all": "^3.1.2",
+    "rimraf": "^2.5.4",
+    "serve": "^2.1.0"
+  },
+  "scripts": {
+    "clean": "rimraf dist",
+    "copy": "copyfiles -u 2 'app/static/**/*' dist",
+    "build:sass": "node-sass --output dist/assets/css app/src/scss",
+    "build:elm": "elm-make app/src/elm/Main.elm --warn --output dist/assets/js/elm.js",
+    "watch:sass": "npm run build:sass -- --source-map true --watch",
+    "watch:elm": "chokidar 'app/src/elm/*.elm' -c 'npm run build:elm'",
+    "prebuild": "npm run clean",
+    "build": "npm-run-all copy build:*",
+    "serve": "serve dist",
+    "prestart": "npm run build",
+    "start": "npm run serve",
+    "prewatch": "npm run build",
+    "watch": "npm-run-all --parallel serve watch:*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepilla/petitions.git"
+  },
+  "keywords": [
+    "elm"
+  ],
+  "author": "deepilla <hello@deepilla.com> (http://deepilla.com)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/deepilla/petitions/issues"
+  },
+  "homepage": "https://github.com/deepilla/petitions#readme"
+}

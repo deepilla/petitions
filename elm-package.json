@@ -4,7 +4,7 @@
     "repository": "https://github.com/deepilla/petitions.git",
     "license": "MIT",
     "source-directories": [
-        "src/elm"
+        "app/src/elm"
     ],
     "exposed-modules": [],
     "dependencies": {

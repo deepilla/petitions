@@ -10,17 +10,17 @@ Start by cloning this repo. Then build with NPM or manually.
 
 #### NPM (Recommended)
 
-1. Run `npm run install` in the root directory to install Elm, Sass and other build dependencies
-2. Run `npm start` to build the project and serve it from localhost:3000
+1. Run `npm install` in the root directory to install Elm, Sass and other build dependencies
+2. Run `npm start` to build the project and serve it from localhost:3000 (you can run these commands separately with `npm run build` and `npm run serve`)
 3. For development, run `npm run watch` which is the same as `npm start` but with automatic rebuilding of assets whenever the Sass/Elm files are changed
 
 #### Manual Build
 
 1. Install [Elm](http://elm-lang.org/) and [Sass](http://sass-lang.com/install)
 2. Create a build folder for the project
-3. Copy the contents of `app/static` to the build folder
-4. From the project's root directory, compile the Elm code with `elm-make --output=path/to/build/folder/assets/js/elm.js app/src/elm/Main.elm`
-5. Compile the Sass files with `sass app/src/scss/styles.scss:path/to/build/folder/assets/css/styles.css`
+3. Copy the contents of `assets` to the build folder
+4. From the project's root directory, compile the Elm code with `elm-make --output=path/to/build/folder/assets/js/elm.js src/elm/Main.elm`
+5. Compile the Sass files with `sass src/scss/styles.scss:path/to/build/folder/assets/css/styles.css`
 6. You can now serve the files from the build folder (or navigate to them directly with file:///path/to/build/folder/index.html)
 
 ### TODO

@@ -2,8 +2,6 @@
   "name": "petitions",
   "version": "1.0.0",
   "description": "A viewer for UK Government Petitions data",
-  "main": "index.html",
-  "dependencies": {},
   "devDependencies": {
     "chokidar-cli": "^1.2.0",
     "copyfiles": "^1.0.0",
@@ -32,9 +30,6 @@
     "type": "git",
     "url": "git+https://github.com/deepilla/petitions.git"
   },
-  "keywords": [
-    "elm"
-  ],
   "author": "deepilla <hello@deepilla.com> (http://deepilla.com)",
   "license": "MIT",
   "bugs": {

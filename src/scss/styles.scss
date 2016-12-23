@@ -23,6 +23,12 @@ $height-footer-padding: 2.5em;
 
 $gutter: 2em;
 
+@mixin at-or-below($breakpoint) {
+    @media (max-width: $breakpoint) {
+        @content;
+    }
+}
+
 @include selection {
     color: white;
     background-color: $color-contrast;
@@ -155,6 +161,7 @@ footer {
 
 header {
     $height: 4em;
+    $breakpoint-menu: 800px;
 
     height: $height;
     line-height: $height;
@@ -187,8 +194,30 @@ header {
         font-weight: $font-weight-bold;
         text-transform: uppercase;
 
+        @include at-or-below($breakpoint-menu) {
+            display: none;
+        }
+
         li {
             padding-left: 2em;
+        }
+    }
+
+    .toggle-menu {
+        float: right;
+        margin-left: 1em;
+        display: none;
+
+        @include at-or-below($breakpoint-menu) {
+            display: inline-block;
+        }
+
+        span {
+            display: none;
+        }
+
+        .icon-menu {
+            font-size: 1.5em;
         }
     }
 }
@@ -308,6 +337,33 @@ header {
         margin: 0;
         line-height: inherit;
         font-weight: $font-weight-bold;
+    }
+}
+
+// Menu page
+
+.pg-menu {
+    text-align: center;
+
+    .titles {
+        display: none;
+    }
+}
+
+.menu-list {
+    list-style: none;
+    padding-left: 0;
+
+    li {
+        margin-bottom: 1.5em;
+    }
+
+    a {
+        font-size: 1.25em;
+    }
+
+    .tooltip {
+        display: block;
     }
 }
 

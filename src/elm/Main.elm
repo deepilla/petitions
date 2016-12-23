@@ -39,6 +39,7 @@ type View
 type Modal
     = FAQ
     | MyPetitions
+    | Menu (List Link)
 
 
 type PetitionState
@@ -597,6 +598,8 @@ view model =
             renderFAQPage
         Just MyPetitions ->
             renderMyPetitionsPage model.saved model.recent
+        Just (Menu links) ->
+            renderMenuPage links
         Nothing ->
             case model.state of
                 Initial ->
@@ -639,7 +642,8 @@ renderLink link =
     Html.a
         (requiredAttributes ++ optionalAttributes)
         [ maybeRender (Maybe.map renderIcon link.icon)
-        , Html.text link.text
+        , Html.span []
+            [ Html.text link.text ]
         ]
 
 
@@ -663,6 +667,22 @@ renderPage page =
                     , icon = Just "icon-back"
                     , class = Nothing
                     }
+
+        hamburger : Link
+        hamburger =
+            { text = "Menu"
+            , msg = ShowModal (Menu page.menuitems)
+            , title = Nothing
+            , icon = Just "icon-menu"
+            , class = Just "toggle-menu"
+            }
+
+        toggleMenu : Maybe (Html Msg)
+        toggleMenu =
+            if not (List.isEmpty page.menuitems) then
+                Just (renderLink hamburger)
+            else
+                Nothing
 
         menu : String -> List Link -> Maybe (Html Msg)
         menu class links =
@@ -691,6 +711,7 @@ renderPage page =
             [ Html.header []
                 [ Html.h1 []
                     [ renderLink home ]
+                , maybeRender toggleMenu
                 , maybeRender (menu "menu" page.menuitems)
                 ]
             , Html.div
@@ -935,6 +956,56 @@ renderFAQPage =
             | type_ = ModalPage "FAQ"
             , title = "Frequently Asked Questions"
             , content = List.concat (List.map2 render questions answers)
+        }
+
+
+renderMenuPage : List Link -> Html Msg
+renderMenuPage links =
+    let
+        batch : Msg -> Msg
+        batch msg =
+            case msg of
+                ShowModal _ ->
+                    msg
+                _ ->
+                    BatchUpdate
+                        [ HideModal
+                        , msg
+                        ]
+
+        updateLink : Link -> Link
+        updateLink link =
+            { link
+                | msg = batch link.msg
+            }
+
+        tooltip : String -> Html Msg
+        tooltip text =
+            Html.span
+                [ Attributes.class "tooltip" ]
+                [ Html.text text ]
+
+        render : Link -> List (Html Msg)
+        render link =
+            [ renderLink link
+            , maybeRender (Maybe.map tooltip link.title)
+            ]
+
+        content : List (Html Msg)
+        content =
+            links
+                |> List.map updateLink
+                |> List.map render
+                |> List.map (Html.li [])
+                |> Html.ul [ Attributes.class "menu-list" ]
+                |> List.repeat 1
+    in
+    renderPage
+        { blankPage
+            | type_ = ModalPage "Menu"
+            , title = "Choose An Option"
+            , content = content
+            , class = Just "pg-menu"
         }
 
 

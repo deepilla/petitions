@@ -447,7 +447,7 @@ update msg model =
             in
             (,) (updateReportOptions options_ model) Cmd.none
 
-        -- TODO: Is there a better way to do handle multiple
+        -- TODO: Is there a better way to handle multiple
         -- updates?
         --
         -- In some cases a single user action needs to trigger
@@ -555,6 +555,11 @@ fetchRandomUrls =
 -- VIEW
 
 
+type PageType
+    = NormalPage
+    | ModalPage String
+
+
 type alias Link =
     { text : String
     , msg : Msg
@@ -562,11 +567,6 @@ type alias Link =
     , class : Maybe String
     , icon : Maybe String
     }
-
-
-type PageType
-    = NormalPage
-    | ModalPage String
 
 
 type alias Page =
@@ -879,18 +879,18 @@ renderErrorPage err =
 renderMyPetitionsPage : PetitionList -> PetitionList -> Html Msg
 renderMyPetitionsPage saved recent =
     let
-        urlToMsg : String -> Msg
-        urlToMsg url =
+        msg : String -> Msg
+        msg url =
             BatchUpdate
                 [ HideModal
                 , LoadPetition False url
                 ]
 
         renderPetitions : String -> PetitionList -> Html Msg
-        renderPetitions defaultMsg petitions =
+        renderPetitions defaultText petitions =
             petitions
-                |> renderPetitionListWith urlToMsg
-                |> Maybe.withDefault (Html.p [] [ Html.text defaultMsg ])
+                |> renderPetitionListWith msg
+                |> Maybe.withDefault (Html.p [] [ Html.text defaultText ])
 
         content : List (Html Msg)
         content =
@@ -983,8 +983,8 @@ renderPetitionSummary petition opts =
 renderPetitionDetail : Petition -> List (Html Msg)
 renderPetitionDetail petition =
     let
-        p : String -> Html Msg
-        p text =
+        para : String -> Html Msg
+        para text =
             Html.p [] [ Html.text text ]
 
         formatPetitionState : PetitionState -> String
@@ -996,6 +996,16 @@ renderPetitionDetail petition =
                     "Closed"
                 Rejected _ ->
                     "Rejected"
+
+        formatPetitionStateTitle : PetitionState -> String
+        formatPetitionStateTitle state =
+            case state of
+                Open ->
+                    ""
+                Closed date ->
+                    "This petition ended on " ++ formatDate date
+                Rejected date ->
+                    "This petition was rejected on " ++ formatDate date
 
         linkToPetition : Html Msg
         linkToPetition =
@@ -1019,13 +1029,14 @@ renderPetitionDetail petition =
             [ Html.text (formatDate petition.created) ]
         , Html.dt []
             [ Html.text "Status" ]
-        , Html.dd []
+        , Html.dd
+            [ Attributes.title (formatPetitionStateTitle petition.state) ]
             [ Html.text (formatPetitionState petition.state) ]
         ]
     , Html.div
         [ Attributes.class "description" ]
         (List.concat
-            [ (List.map p petition.description)
+            [ (List.map para petition.description)
             , [linkToPetition]
             ]
         )
@@ -1584,17 +1595,17 @@ renderInput currentValue =
 
 
 renderPetitionListWith : (String -> Msg) -> PetitionList -> Maybe (Html Msg)
-renderPetitionListWith onClick petitions =
+renderPetitionListWith onClick items =
     let
         linkToPetition : PetitionList.Item -> Html Msg
-        linkToPetition petition =
+        linkToPetition item =
             Html.a
-                [ Events.onClick (onClick petition.url)
+                [ Events.onClick (onClick item.url)
                 , Attributes.href "javascript:;"
                 ]
-                [ Html.text petition.title ]
+                [ Html.text item.title ]
     in
-    petitions
+    items
         |> List.map linkToPetition
         |> List.map (\a -> Html.li [] [ a ])
         |> listToMaybe
@@ -1796,39 +1807,32 @@ renderTable headers body totals items =
 navigationLinks : View -> List Link
 navigationLinks currentView =
     let
-        selected : View -> Maybe String
-        selected view =
-            if view == currentView then
-                Just "selected"
-            else
-                Nothing
+        labels : List String
+        labels =
+            [ "Summary"
+            , "Detail"
+            , "Countries"
+            , "Constituencies"
+            ]
+
+        views : List View
+        views =
+            [ Summary
+            , Detail
+            , CountryData
+            , ConstituencyData
+            ]
+
+        link : String -> View -> Link
+        link label view =
+            { text = label
+            , title = Nothing
+            , class = (if view == currentView then Just "selected" else Nothing)
+            , msg = SetView view
+            , icon = Nothing
+            }
     in
-    [
-        { text = "Summary"
-        , title = Nothing
-        , class = selected Summary
-        , msg = SetView Summary
-        , icon = Nothing
-        }
-    ,   { text = "Details"
-        , title = Nothing
-        , class = selected Detail
-        , msg = SetView Detail
-        , icon = Nothing
-        }
-    ,   { text = "Countries"
-        , title = Nothing
-        , class = selected CountryData
-        , msg = SetView CountryData
-        , icon = Nothing
-        }
-    ,   { text = "Constituencies"
-        , title = Nothing
-        , class = selected ConstituencyData
-        , msg = SetView ConstituencyData
-        , icon = Nothing
-        }
-    ]
+    List.map2 link labels views
 
 
 petitionLinks : PetitionList.Item -> Bool -> List Link
@@ -1906,30 +1910,25 @@ init config =
             , "saved.petitions"
             ]
 
-        initialFetch : Cmd Msg
-        initialFetch =
+        fetchCmd : Cmd Msg
+        fetchCmd =
             config.id
                 |> Maybe.map urlWithId
                 |> Maybe.map fetchPetition
                 |> Maybe.withDefault Cmd.none
 
-        initialState : AppState
-        initialState =
-            config.id
-                |> Maybe.map (always Loading)
-                |> Maybe.withDefault Initial
-
         model : Model
         model =
             { initialModel
-                | state = initialState
-                , logging = config.logging
+                | logging = config.logging
+                , state = if fetchCmd /= Cmd.none then Loading else Initial
             }
 
         cmd : Cmd Msg
         cmd =
-            List.map getLocalStorage localStorageKeys
-                |> (::) initialFetch
+            localStorageKeys
+                |> List.map getLocalStorage
+                |> (::) fetchCmd
                 |> Cmd.batch
     in
     (,) model cmd
@@ -2360,9 +2359,11 @@ queryPair : (String, String) -> String
 queryPair (key,value) =
     queryEscape key ++ "=" ++ queryEscape value
 
+
 queryEscape : String -> String
 queryEscape string =
     String.join "+" (String.split "%20" (Http.encodeUri string))
+
 
 url : String -> List (String, String) -> String
 url baseUrl args =

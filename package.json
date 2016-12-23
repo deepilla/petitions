@@ -6,10 +6,10 @@
     "chokidar-cli": "^1.2.0",
     "copyfiles": "^1.0.0",
     "elm": "^0.18.0",
+    "light-server": "^1.1.7",
     "node-sass": "^4.1.1",
     "npm-run-all": "^3.1.2",
-    "rimraf": "^2.5.4",
-    "serve": "^2.1.0"
+    "rimraf": "^2.5.4"
   },
   "scripts": {
     "clean": "rimraf dist",
@@ -20,11 +20,12 @@
     "watch:elm": "chokidar 'src/elm/*.elm' -c 'npm run build:elm'",
     "prebuild": "npm run clean",
     "build": "npm-run-all copy build:*",
-    "serve": "serve dist",
+    "serve": "light-server --serve dist --port=8080",
+    "reload": "npm run serve -- --watchexp '**/*.css # # reloadcss' --watchexp '**/*.js'",
     "prestart": "npm run build",
     "start": "npm run serve",
     "prewatch": "npm run build",
-    "watch": "npm-run-all --parallel serve watch:*"
+    "watch": "npm-run-all --parallel watch:* reload"
   },
   "repository": {
     "type": "git",

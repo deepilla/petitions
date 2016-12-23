@@ -11,8 +11,8 @@ Builds are automated via NPM scripts. If you don't have/like NPM, it's easy enou
 ### Build With NPM (Recommended)
 
 1. Run `npm install` in the root directory to install Elm, Sass and other build dependencies
-2. Run `npm start` to build the project and serve it from localhost:3000
-3. For development, run `npm run watch` which is the same as `npm start` but with automatic rebuilding of Sass/Elm files whenever they change
+2. Run `npm start` to build the project and serve it from localhost:8080
+3. For development, run `npm run watch` which is the same as `npm start` but with live reloading whenever the Sass/Elm source files change
 
 ### Build Manually
 
@@ -47,5 +47,4 @@ Builds are automated via NPM scripts. If you don't have/like NPM, it's easy enou
 
 - Make sure the build scripts work on Windows
 - [Uglify](https://www.npmjs.com/package/uglify-js) Elm JS
-- Add [live reload](https://www.npmjs.com/package/live-server)
 - Switch to Yarn?

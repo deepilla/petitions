@@ -6,7 +6,9 @@ The [UK Government Petitions](https://petition.parliament.uk/) website is like c
 
 ## Install/Build
 
-Builds are automated with [NPM](https://www.npmjs.com/) scripts (also compatible with [Yarn](https://yarnpkg.com/)). If you don't have NPM/Yarn, it's easy enough to build the project manually. Either way, start by cloning the repo and then do one of the following:
+Petitions is made with [Elm](http://elm-lang.org/) and [Sass](http://sass-lang.com/). Builds are automated with [NPM](https://www.npmjs.com/) scripts (compatible with [Yarn](https://yarnpkg.com/)). If you don't have NPM/Yarn, it's easy enough to build the project manually.
+
+Start by cloning the repo and then do one of the following:
 
 ### Build With NPM/Yarn (Recommended)
 
@@ -16,19 +18,19 @@ Builds are automated with [NPM](https://www.npmjs.com/) scripts (also compatible
 
 ### Build Manually
 
-1. Make sure you have [Elm](http://elm-lang.org/) and [Sass](http://sass-lang.com/install) installed
+1. Make sure you have Elm and Sass installed
 2. Create a build folder for the project
-3. Copy the contents of `assets` to the build folder
+3. Copy the contents of `assets` to your build folder
 4. From the project root, compile the Elm code with `elm-make --output=path/to/build/folder/assets/js/elm.js src/elm/Main.elm`
 5. Compile the Sass files with `sass src/scss/styles.scss:path/to/build/folder/assets/css/styles.css`
-6. You can now serve/deploy from the build folder (or navigate to the files directly with file:///path/to/build/folder/index.html)
+6. You can now serve/deploy the project from your build folder (or navigate to the files directly with file:///path/to/build/folder/index.html)
 
 ## TODO
 
 ### Features
 
-- Working browser history/title (via History API and document.title)
-- Petition search
+- Search for petitions
+- Enable browser history/title (via History API and document.title)
 - Transitions between screens
 - Show a "Try again" link when a petition fails to load
 - Handle edge cases sensibly (e.g. no signatures, 1 signature, all signatures in 1 country)

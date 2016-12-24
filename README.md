@@ -6,13 +6,13 @@ The [UK Government Petitions](https://petition.parliament.uk/) website is like c
 
 ## Install/Build
 
-Builds are automated via NPM scripts. If you don't have/like NPM, it's easy enough to build the project manually. Either way, start by cloning the repo and then do one of the following:
+Builds are automated with [NPM](https://www.npmjs.com/) scripts (also compatible with [Yarn](https://yarnpkg.com/)). If you don't have NPM/Yarn, it's easy enough to build the project manually. Either way, start by cloning the repo and then do one of the following:
 
-### Build With NPM (Recommended)
+### Build With NPM/Yarn (Recommended)
 
-1. Run `npm install` in the root directory to install Elm, Sass and other build dependencies
-2. Run `npm start` to build the project and serve it from localhost:8080
-3. For development, run `npm run watch` which is the same as `npm start` but with live reloading whenever the Sass/Elm source files change
+1. Run `npm install` (or `yarn`) in the root directory to install Elm, Sass and other build dependencies
+2. Run `npm start` (or `yarn start`) to build the project and serve it from localhost:8080
+3. For development, run `npm run watch` (or `yarn run watch`) which is the same as the start command but with live reloading whenever the Sass/Elm source files change
 
 ### Build Manually
 
@@ -47,4 +47,3 @@ Builds are automated via NPM scripts. If you don't have/like NPM, it's easy enou
 
 - Make sure the build scripts work on Windows
 - [Uglify](https://www.npmjs.com/package/uglify-js) Elm JS
-- Switch to Yarn?

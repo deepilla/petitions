@@ -85,8 +85,15 @@ type alias Constituency =
     -- MP can be null (due to death, resignation etc).
     , mp : Maybe String
     , signatures : Int
-    , info : Maybe Constituencies.Item
+    , info : Constituencies.Item
     }
+
+
+makeConstituencyInfoDecoder : String -> Json.Decoder Constituencies.Item
+makeConstituencyInfoDecoder code =
+    Constituencies.get code
+        |> Maybe.map Json.succeed
+        |> Maybe.withDefault (Json.fail ("Unknown constituency " ++ code))
 
 
 constituencyDecoder : Json.Decoder Constituency
@@ -96,7 +103,8 @@ constituencyDecoder =
         (Json.field "mp" (Json.nullable Json.string))
         (Json.field "signature_count" Json.int)
         -- Look up constituency info using the ONS code.
-        (Json.field "ons_code" (Json.map Constituencies.get Json.string))
+        ((Json.field "ons_code" Json.string)
+            |> Json.andThen makeConstituencyInfoDecoder)
 
 
 type alias Petition =
@@ -1271,10 +1279,7 @@ renderPetitionConstituencies petition opts =
                 ++ (constituency.mp
                     |> Maybe.withDefault "Unknown")
                 ++ ", Electorate "
-                ++ (constituency.info
-                    |> Maybe.map .electorate
-                    |> Maybe.map thousands
-                    |> Maybe.withDefault "Unknown")
+                ++ (thousands (constituency.info.electorate))
 
         headers : List Header
         headers =
@@ -1324,12 +1329,12 @@ renderPetitionConstituencies petition opts =
                 , align = Nothing
                 , span = Nothing
                 }
-            ,   { value = getConstituencyCountryWithDefault ""
+            ,   { value = getConstituencyCountry
                 , title = Nothing
                 , align = Nothing
                 , span = Nothing
                 }
-            ,   { value = getConstituencyRegionWithDefault ""
+            ,   { value = getConstituencyRegion >> Maybe.withDefault ""
                 , title = Nothing
                 , align = Nothing
                 , span = Nothing
@@ -1546,21 +1551,14 @@ renderTopCountries limit countryFilter countries =
 renderConstituencies : GroupBy -> List Constituency -> Html Msg
 renderConstituencies groupBy constituencies =
     let
-        getCountry : Constituency -> String
-        getCountry =
-            getConstituencyCountryWithDefault "Unknown"
-
-        getRegion : Constituency -> String
-        getRegion constituency =
-            getConstituencyRegionWithDefault (getCountry constituency) constituency
-
         getKey : Constituency -> String
-        getKey =
+        getKey constituency =
             case groupBy of
                 GroupByCountry ->
-                    getCountry
+                    getConstituencyCountry constituency
                 GroupByRegion ->
-                    getRegion
+                    getConstituencyRegion constituency
+                        |> Maybe.withDefault (getConstituencyCountry constituency) 
 
         updateDict : (Constituency -> String) -> Constituency -> Dict String Int -> Dict String Int
         updateDict key constituency =
@@ -2297,9 +2295,11 @@ sortCountries opts =
 sortConstituencies : SortOptions -> List Constituency -> List Constituency
 sortConstituencies opts =
     let
-        getCountry : Constituency -> String
-        getCountry constituency =
-            getConstituencyCountryWithDefault "" constituency
+        country : Constituency -> String
+        country constituency =
+            -- Sort constituencies in the same country
+            -- by constituency name.
+            getConstituencyCountry constituency
                 ++ "__"
                 ++ constituency.name
     in
@@ -2307,7 +2307,7 @@ sortConstituencies opts =
         SortByConstituency ->
             sort opts.order .name
         SortByCountry ->
-            sort opts.order getCountry
+            sort opts.order country
         SortBySignatures ->
             sort opts.order .signatures
 
@@ -2348,28 +2348,16 @@ regionToString region =
             "Yorkshire"
 
 
-getConstituencyCountry : Constituency -> Maybe String
+getConstituencyCountry : Constituency -> String
 getConstituencyCountry constituency =
-    constituency.info
-        |> Maybe.map .country
-        |> Maybe.map countryToString
-
-
-getConstituencyCountryWithDefault : String -> Constituency -> String
-getConstituencyCountryWithDefault default constituency =
-    Maybe.withDefault default (getConstituencyCountry constituency)
+    constituency.info.country
+        |> countryToString
 
 
 getConstituencyRegion : Constituency -> Maybe String
 getConstituencyRegion constituency =
-    constituency.info
-        |> Maybe.andThen .region
+    constituency.info.region
         |> Maybe.map regionToString
-
-
-getConstituencyRegionWithDefault : String -> Constituency -> String
-getConstituencyRegionWithDefault default constituency =
-    Maybe.withDefault default (getConstituencyRegion constituency)
 
 
 pluraliseCountries : Int -> String

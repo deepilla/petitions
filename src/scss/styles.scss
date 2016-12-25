@@ -11,7 +11,7 @@ $font-weight-bolder: 700;
 $color-background: #eeeff1;
 $color-background-darker: darken($color-background, 7.5%);
 $color-text: #121b21;
-$color-text-lighter: #999; 
+$color-text-lighter: #999;
 $color-link: #ff5252;
 $color-link: #d62323;
 $color-link-hover: darken($color-link, 10%);
@@ -32,13 +32,6 @@ $gutter: 2em;
 @include selection {
     color: white;
     background-color: $color-contrast;
-}
-
-// This extra wrapper div is required by Elm. We
-// need it to be 100% height. Otherwise our sticky
-// footer styles won't work.
-#elm-body {
-    height: 100%;
 }
 
 @include sticky-footer(".content-wrapper", $height-footer + $height-footer-padding);
@@ -82,6 +75,10 @@ a:link, a:visited {
 
 a:hover, a:active {
     color: $color-link-hover;
+}
+
+.full-height {
+    height: 100%;
 }
 
 .large {
@@ -168,10 +165,16 @@ header {
     padding: 0 $gutter;
     background-color: white;
     border-bottom: 1px solid $color-border;
-    // Header rolls up when the loading screen is shown.
     transition: height .25s;
-    // Hide text when the header rolls down again.
     overflow: hidden;
+
+    @include at-or-below($breakpoint-menu) {
+        @for $i from 1 through 6 {
+            &.menu-expanded-#{$i} {
+                height: (($i+1) * $height) + 1em;
+            }
+        }
+    }
 
     h1 {
         margin: 0;
@@ -195,17 +198,22 @@ header {
         text-transform: uppercase;
 
         @include at-or-below($breakpoint-menu) {
-            display: none;
+            clear: right;
+            text-align: right;
         }
 
         li {
             padding-left: 2em;
+
+            @include at-or-below($breakpoint-menu) {
+                display: block;
+                padding-left: 0;
+            }
         }
     }
 
-    .toggle-menu {
+    .menu-toggle {
         float: right;
-        margin-left: 1em;
         display: none;
 
         @include at-or-below($breakpoint-menu) {
@@ -219,13 +227,20 @@ header {
         .icon-menu {
             font-size: 1.5em;
         }
+
+        .icon-cancel {
+            font-size: 2em;
+            // Fine tuning of the cancel icon position.
+            position: relative;
+            right: -.25em;
+        }
     }
 }
 
 .titles {
     margin-bottom: 3em;
     border-bottom: 2px solid;
-    
+
     h2 {
         margin: .75em 0;
     }
@@ -247,7 +262,7 @@ header {
             &:link, &:visited {
                 color: inherit;
             }
-            
+
             &:hover, &:active, &.selected {
                 border-color: initial;
             }
@@ -308,7 +323,7 @@ header {
 
     input {
         width: 100%;
-        // Include padding in the width. 
+        // Include padding in the width.
         box-sizing: border-box;
         padding-left: 2.4em;
 
@@ -337,33 +352,6 @@ header {
         margin: 0;
         line-height: inherit;
         font-weight: $font-weight-bold;
-    }
-}
-
-// Menu page
-
-.pg-menu {
-    text-align: center;
-
-    .titles {
-        display: none;
-    }
-}
-
-.menu-list {
-    list-style: none;
-    padding-left: 0;
-
-    li {
-        margin-bottom: 1.5em;
-    }
-
-    a {
-        font-size: 1.25em;
-    }
-
-    .tooltip {
-        display: block;
     }
 }
 

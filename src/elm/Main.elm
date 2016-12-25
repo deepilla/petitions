@@ -39,7 +39,11 @@ type View
 type Modal
     = FAQ
     | MyPetitions
-    | Menu (List Link)
+
+
+type MenuState
+    = MenuHidden
+    | MenuExpanded Int
 
 
 type PetitionState
@@ -214,6 +218,7 @@ type alias Model =
     , view : View
     , options : ReportOptions
     , modal : Maybe Modal
+    , menuState : MenuState
     , recent : PetitionList
     , saved : PetitionList
     , urlGenerator : Maybe (Random.Generator String)
@@ -228,6 +233,7 @@ initialModel =
     , view = Summary
     , options = defaultReportOptions
     , modal = Nothing
+    , menuState = MenuHidden
     , recent = []
     , saved = []
     , urlGenerator = Nothing
@@ -250,6 +256,8 @@ port setLocalStorage : (String, String) -> Cmd msg
 type Msg
     -- User actions
     = Start
+    | ExpandMenu Int
+    | HideMenu
     | LoadPetition Bool String
     | LoadRandomPetition
     | SetView View
@@ -402,6 +410,12 @@ update msg model =
         HideModal ->
             (,) (updateModal Nothing model) Cmd.none
 
+        ExpandMenu length ->
+            (,) (updateMenuState (MenuExpanded length) model) Cmd.none
+
+        HideMenu ->
+            (,) (updateMenuState MenuHidden model) Cmd.none
+
         SetView view ->
             let
                 model_ =
@@ -493,6 +507,13 @@ updateReportOptions : ReportOptions -> Model -> Model
 updateReportOptions options model =
     { model
         | options = options
+    }
+
+
+updateMenuState : MenuState -> Model -> Model
+updateMenuState state model =
+    { model
+        | menuState = state
     }
 
 
@@ -601,28 +622,41 @@ blankPage =
 
 view : Model -> Html Msg
 view model =
+    let
+        render : Page -> Html Msg
+        render =
+            renderPage model.menuState
+    in
     case model.modal of
         Just FAQ ->
-            renderFAQPage
+            render buildFAQPage
         Just MyPetitions ->
-            renderMyPetitionsPage model.saved model.recent
-        Just (Menu links) ->
-            renderMenuPage links
+            render (buildMyPetitionsPage model.saved model.recent)
         Nothing ->
             case model.state of
                 Initial ->
-                    renderHomePage model
+                    render (buildHomePage model)
                 Loading ->
                     renderLoadingPage
                 Loaded petition ->
-                    renderPetitionPage petition model
+                    render (buildPetitionPage model petition)
                 Failed err ->
-                    renderErrorPage err
+                    render (buildErrorPage err)
 
 
 maybeRender : Maybe (Html Msg) -> Html Msg
 maybeRender =
     Maybe.withDefault (Html.text "")
+
+
+maybeClasses : List (Maybe String) -> Html.Attribute Msg
+maybeClasses maybeValues =
+    let
+        toTuple : Maybe String -> (String, Bool)
+        toTuple maybeValue =
+            (Maybe.withDefault "" maybeValue, maybeValue /= Nothing)
+    in
+    Attributes.classList (List.map toTuple maybeValues)
 
 
 renderIcon : String -> Html Msg
@@ -655,50 +689,51 @@ renderLink link =
         ]
 
 
-renderPage : Page -> Html Msg
-renderPage page =
+renderPage : MenuState -> Page -> Html Msg
+renderPage menuState page =
     let
-        home : Link
-        home =
-            case page.type_ of
-                NormalPage ->
-                    { text = "UK Petitions"
-                    , msg = Start
-                    , title = Just "Get Started"
-                    , icon = Just "icon-portcullis"
-                    , class = Nothing
-                    }
-                ModalPage name ->
-                    { text = name
-                    , msg = HideModal
-                    , title = Just "Back"
-                    , icon = Just "icon-back"
-                    , class = Nothing
-                    }
-
-        hamburger : Link
-        hamburger =
-            { text = "Menu"
-            , msg = ShowModal (Menu page.menuitems)
-            , title = Nothing
-            , icon = Just "icon-menu"
-            , class = Just "toggle-menu"
-            }
-
-        toggleMenu : Maybe (Html Msg)
-        toggleMenu =
-            if not (List.isEmpty page.menuitems) then
-                Just (renderLink hamburger)
-            else
-                Nothing
-
-        menu : String -> List Link -> Maybe (Html Msg)
-        menu class links =
+        renderMenu : String -> List Link -> Maybe (Html Msg)
+        renderMenu class links =
             links
                 |> List.map renderLink
                 |> List.map (\a -> Html.li [] [ a ])
                 |> listToMaybe
                 |> Maybe.map (Html.ul [ Attributes.class class ])
+
+        home : Link
+        home =
+            homeLink page.type_
+
+        hamburger : Int -> Link
+        hamburger menuLength =
+            hamburgerLink menuState menuLength
+
+        menu : Maybe (Html Msg)
+        menu =
+            page.menuitems
+                |> List.map (\link -> { link | msg = BatchUpdate [ HideMenu, link.msg ] })
+                |> renderMenu "menu"
+
+        menuToggle : Maybe (Html Msg)
+        menuToggle =
+            page.menuitems
+                |> listToMaybe
+                |> Maybe.map List.length
+                |> Maybe.map hamburger
+                |> Maybe.map renderLink
+
+        menuClass : String
+        menuClass =
+            case menuState of
+                MenuHidden ->
+                    "menu-hidden"
+                MenuExpanded length ->
+                    "menu-expanded-" ++ toString length
+
+        nav : Maybe (Html Msg)
+        nav =
+            page.navitems
+                |> renderMenu "nav"
 
         footer : Maybe (Html Msg)
         footer =
@@ -708,19 +743,22 @@ renderPage page =
                 ModalPage _ ->
                     Nothing
     in
-    Html.div -- Wrapper element required by Elm :(
-        [ Attributes.id "elm-body"
-        , Attributes.class (Maybe.withDefault "" page.class)
-        ]
-        [ Html.div -- Extra wrapper for sticky footer CSS :(
-            [ Attributes.classList
-                [ ("content-wrapper", footer /= Nothing) ]
+    Html.div
+        [ maybeClasses
+            [ page.class
+            , Maybe.map (always "full-height") footer
             ]
-            [ Html.header []
+        ]
+        [ Html.div
+            [ maybeClasses
+                [ Maybe.map (always "content-wrapper") footer ]
+            ]
+            [ Html.header
+                [ Attributes.class menuClass ]
                 [ Html.h1 []
                     [ renderLink home ]
-                , maybeRender toggleMenu
-                , maybeRender (menu "menu" page.menuitems)
+                , maybeRender menuToggle
+                , maybeRender menu
                 ]
             , Html.div
                 [ Attributes.class "main" ]
@@ -731,7 +769,7 @@ renderPage page =
                             [ Attributes.class "titles" ]
                             [ Html.h2 []
                                 [ Html.text page.title ]
-                            , maybeRender (menu "nav" page.navitems)
+                            , maybeRender nav
                             ]
                         ]
                         page.content
@@ -742,8 +780,46 @@ renderPage page =
         ]
 
 
-renderHomePage : Model -> Html Msg
-renderHomePage model =
+homeLink : PageType -> Link
+homeLink type_ =
+    case type_ of
+        NormalPage ->
+            { text = "UK Petitions"
+            , msg = Start
+            , title = Just "Get Started"
+            , icon = Just "icon-portcullis"
+            , class = Nothing
+            }
+        ModalPage name ->
+            { text = name
+            , msg = HideModal
+            , title = Just "Back"
+            , icon = Just "icon-back"
+            , class = Nothing
+            }
+
+
+hamburgerLink : MenuState -> Int -> Link
+hamburgerLink menuState menuLength =
+    case menuState of
+        MenuHidden ->
+            { text = "Menu"
+            , msg = ExpandMenu menuLength
+            , title = Just "Show Menu"
+            , icon = Just "icon-menu"
+            , class = Just "menu-toggle"
+            }
+        MenuExpanded _ ->
+            { text = "Menu"
+            , msg = HideMenu
+            , title = Just "Hide Menu"
+            , icon = Just "icon-cancel"
+            , class = Just "menu-toggle"
+            }
+
+
+buildHomePage : Model -> Page
+buildHomePage model =
     let
         content : List (Html Msg)
         content =
@@ -759,17 +835,16 @@ renderHomePage model =
                 ]
             ]
     in
-    renderPage
-        { blankPage
-            | title = "Get Started"
-            , class = Just "pg-home"
-            , content = content
-            , menuitems = defaultLinks
-        }
+    { blankPage
+        | title = "Get Started"
+        , class = Just "pg-home"
+        , content = content
+        , menuitems = defaultLinks
+    }
 
 
-renderPetitionPage : Petition -> Model -> Html Msg
-renderPetitionPage petition model =
+buildPetitionPage : Model -> Petition -> Page
+buildPetitionPage model petition =
     let
         item : PetitionList.Item
         item =
@@ -791,13 +866,12 @@ renderPetitionPage petition model =
                 ConstituencyData ->
                     renderPetitionConstituencies petition model.options
     in
-    renderPage
-        { blankPage
-            | title = petition.title
-            , content = content
-            , navitems = navigationLinks model.view
-            , menuitems = (petitionLinks item isSaved) ++ defaultLinks
-        }
+    { blankPage
+        | title = petition.title
+        , content = content
+        , navitems = navigationLinks model.view
+        , menuitems = (petitionLinks item isSaved) ++ defaultLinks
+    }
 
 
 renderLoadingPage : Html Msg
@@ -845,8 +919,8 @@ renderLoadingPage =
         ]
 
 
-renderErrorPage : Http.Error -> Html Msg
-renderErrorPage err =
+buildErrorPage : Http.Error -> Page
+buildErrorPage err =
     let
         reason : String
         reason =
@@ -897,16 +971,15 @@ renderErrorPage err =
                 ]
             ]
     in
-    renderPage
-        { blankPage
-            | title = "Oh Sheesh, Y'all :("
-            , content = content
-            , menuitems = defaultLinks
-        }
+    { blankPage
+        | title = "Oh Sheesh, Y'all :("
+        , content = content
+        , menuitems = defaultLinks
+    }
 
 
-renderMyPetitionsPage : PetitionList -> PetitionList -> Html Msg
-renderMyPetitionsPage saved recent =
+buildMyPetitionsPage : PetitionList -> PetitionList -> Page
+buildMyPetitionsPage saved recent =
     let
         msg : String -> Msg
         msg url =
@@ -931,16 +1004,15 @@ renderMyPetitionsPage saved recent =
             , renderPetitions "You haven't viewed any petitions yet" recent
             ]
     in
-    renderPage
-        { blankPage
-            | type_ = ModalPage "My Petitions"
-            , title = "Your Petitions"
-            , content = content
-        }
+    { blankPage
+        | type_ = ModalPage "My Petitions"
+        , title = "Your Petitions"
+        , content = content
+    }
 
 
-renderFAQPage : Html Msg
-renderFAQPage =
+buildFAQPage : Page
+buildFAQPage =
     let
         questions : List String
         questions =
@@ -959,62 +1031,11 @@ renderFAQPage =
         render question answer =
             (Html.h3 [] [ Html.text (question ++ "?") ]) :: answer
     in
-    renderPage
-        { blankPage
-            | type_ = ModalPage "FAQ"
-            , title = "Frequently Asked Questions"
-            , content = List.concat (List.map2 render questions answers)
-        }
-
-
-renderMenuPage : List Link -> Html Msg
-renderMenuPage links =
-    let
-        batch : Msg -> Msg
-        batch msg =
-            case msg of
-                ShowModal _ ->
-                    msg
-                _ ->
-                    BatchUpdate
-                        [ HideModal
-                        , msg
-                        ]
-
-        updateLink : Link -> Link
-        updateLink link =
-            { link
-                | msg = batch link.msg
-            }
-
-        tooltip : String -> Html Msg
-        tooltip text =
-            Html.span
-                [ Attributes.class "tooltip" ]
-                [ Html.text text ]
-
-        render : Link -> List (Html Msg)
-        render link =
-            [ renderLink link
-            , maybeRender (Maybe.map tooltip link.title)
-            ]
-
-        content : List (Html Msg)
-        content =
-            links
-                |> List.map updateLink
-                |> List.map render
-                |> List.map (Html.li [])
-                |> Html.ul [ Attributes.class "menu-list" ]
-                |> List.repeat 1
-    in
-    renderPage
-        { blankPage
-            | type_ = ModalPage "Menu"
-            , title = "Choose An Option"
-            , content = content
-            , class = Just "pg-menu"
-        }
+    { blankPage
+        | type_ = ModalPage "FAQ"
+        , title = "Frequently Asked Questions"
+        , content = List.concat (List.map2 render questions answers)
+    }
 
 
 renderFooter : Html Msg
@@ -1558,7 +1579,7 @@ renderConstituencies groupBy constituencies =
                     getConstituencyCountry constituency
                 GroupByRegion ->
                     getConstituencyRegion constituency
-                        |> Maybe.withDefault (getConstituencyCountry constituency) 
+                        |> Maybe.withDefault (getConstituencyCountry constituency)
 
         updateDict : (Constituency -> String) -> Constituency -> Dict String Int -> Dict String Int
         updateDict key constituency =
@@ -1956,9 +1977,16 @@ defaultLinks =
 port onLocalStorage : ((String, Maybe String) -> msg) -> Sub msg
 
 
+-- Notify Elm of a window resize. The Int argument is unused.
+port onWindowResized : (Int -> msg) -> Sub msg
+
+
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    onLocalStorage (uncurry OnLocalStorage)
+    Sub.batch
+        [ onWindowResized (always HideMenu)
+        , onLocalStorage (uncurry OnLocalStorage)
+        ]
 
 
 -- MAIN

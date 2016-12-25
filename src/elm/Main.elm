@@ -380,20 +380,7 @@ update msg model =
             (,) model_ Cmd.none
 
         OnLocalStorage key (Just value) ->
-            let
-                model_ =
-                    if key == "recent.petitions" then
-                        { model
-                            | recent = PetitionList.fromJson value
-                        }
-                    else if key == "saved.petitions" then
-                        { model
-                            | saved = PetitionList.fromJson value
-                        }
-                    else
-                        model
-            in
-            (,) model_ Cmd.none
+            (,) (updateFromLocalStorage key value model) Cmd.none
 
         OnLocalStorage _ Nothing ->
             (,) model Cmd.none
@@ -503,6 +490,13 @@ updateModal maybeModal model =
     }
 
 
+updateMenuState : MenuState -> Model -> Model
+updateMenuState state model =
+    { model
+        | menuState = state
+    }
+
+
 updateReportOptions : ReportOptions -> Model -> Model
 updateReportOptions options model =
     { model
@@ -510,11 +504,19 @@ updateReportOptions options model =
     }
 
 
-updateMenuState : MenuState -> Model -> Model
-updateMenuState state model =
-    { model
-        | menuState = state
-    }
+updateFromLocalStorage : String -> String -> Model -> Model
+updateFromLocalStorage key value model =
+    case key of
+        "recent.petitions" ->
+            { model
+                | recent = PetitionList.fromJson value
+            }
+        "saved.petitions" ->
+            { model
+                | saved = PetitionList.fromJson value
+            }
+        _ ->
+            model
 
 
 updateSavedPetitions : PetitionList -> Model -> (Model, Cmd Msg)
@@ -534,6 +536,7 @@ updateSavedPetitions petitions model =
 updateSortOptions : SortBy -> SortOptions -> SortOptions
 updateSortOptions by opts =
     let
+        order : SortOrder
         order =
             if opts.by == by then
                 case opts.order of
@@ -592,7 +595,7 @@ type PageType
 
 type alias Link =
     { text : String
-    , msg : Msg
+    , action : Msg
     , title : Maybe String
     , class : Maybe String
     , icon : Maybe String
@@ -670,7 +673,7 @@ renderLink link =
     let
         requiredAttributes : List (Html.Attribute Msg)
         requiredAttributes =
-            [ Events.onClick link.msg
+            [ Events.onClick link.action
             , Attributes.href "javascript:;"
             ]
 
@@ -711,7 +714,7 @@ renderPage menuState page =
         menu : Maybe (Html Msg)
         menu =
             page.menuitems
-                |> List.map (\link -> { link | msg = BatchUpdate [ HideMenu, link.msg ] })
+                |> List.map (\link -> { link | action = BatchUpdate [ HideMenu, link.action ] })
                 |> renderMenu "menu"
 
         menuToggle : Maybe (Html Msg)
@@ -785,14 +788,14 @@ homeLink type_ =
     case type_ of
         NormalPage ->
             { text = "UK Petitions"
-            , msg = Start
+            , action = Start
             , title = Just "Get Started"
             , icon = Just "icon-portcullis"
             , class = Nothing
             }
         ModalPage name ->
             { text = name
-            , msg = HideModal
+            , action = HideModal
             , title = Just "Back"
             , icon = Just "icon-back"
             , class = Nothing
@@ -804,14 +807,14 @@ hamburgerLink menuState menuLength =
     case menuState of
         MenuHidden ->
             { text = "Menu"
-            , msg = ExpandMenu menuLength
+            , action = ExpandMenu menuLength
             , title = Just "Show Menu"
             , icon = Just "icon-menu"
             , class = Just "menu-toggle"
             }
         MenuExpanded _ ->
             { text = "Menu"
-            , msg = HideMenu
+            , action = HideMenu
             , title = Just "Hide Menu"
             , icon = Just "icon-cancel"
             , class = Just "menu-toggle"
@@ -1176,21 +1179,21 @@ renderPetitionCountries petition opts =
                 , title = Just "Sort by Country"
                 , align = Nothing
                 , span = Nothing
-                , msg = Just (SortCountryData SortByCountry)
+                , action = Just (SortCountryData SortByCountry)
                 , icon = Just (iconClass SortByCountry)
                 }
             ,   { text = "Signatures"
                 , title = Just "Sort by Signatures"
                 , align = Just AlignCenter
                 , span = Nothing
-                , msg = Just (SortCountryData SortBySignatures)
+                , action = Just (SortCountryData SortBySignatures)
                 , icon = Just (iconClass SortBySignatures)
                 }
             ,   { text = "Signatures (%)"
                 , title = Nothing
                 , align = Just AlignCenter
                 , span = Nothing
-                , msg = Nothing
+                , action = Nothing
                 , icon = Nothing
                 }
             ]
@@ -1309,35 +1312,35 @@ renderPetitionConstituencies petition opts =
                 , title = Just "Sort by Constituency"
                 , align = Nothing
                 , span = Nothing
-                , msg = Just (SortConstituencyData SortByConstituency)
+                , action = Just (SortConstituencyData SortByConstituency)
                 , icon = Just (iconClass SortByConstituency)
                 }
             ,   { text = "Country"
                 , title = Just "Sort by Country"
                 , align = Nothing
                 , span = Nothing
-                , msg = Just (SortConstituencyData SortByCountry)
+                , action = Just (SortConstituencyData SortByCountry)
                 , icon = Just (iconClass SortByCountry)
                 }
             ,   { text = "Region"
                 , title = Nothing
                 , align = Nothing
                 , span = Nothing
-                , msg = Nothing
+                , action = Nothing
                 , icon = Nothing
                 }
             ,   { text = "Signatures"
                 , title = Just "Sort by Signatures"
                 , align = Just AlignCenter
                 , span = Nothing
-                , msg = Just (SortConstituencyData SortBySignatures)
+                , action = Just (SortConstituencyData SortBySignatures)
                 , icon = Just (iconClass SortBySignatures)
                 }
             ,   { text = "Signatures (%)"
                 , title = Nothing
                 , align = Just AlignCenter
                 , span = Nothing
-                , msg = Nothing
+                , action = Nothing
                 , icon = Nothing
                 }
             ]
@@ -1791,7 +1794,7 @@ type alias Header =
     , title : Maybe String
     , align : Maybe Align
     , span : Maybe Int
-    , msg : Maybe Msg
+    , action : Maybe Msg
     , icon : Maybe String
     }
 
@@ -1837,7 +1840,7 @@ th header =
             , Maybe.map alignAttribute header.align
             ]
         )
-        (maybeLink header.msg
+        (maybeLink header.action
             [ Html.text header.text
             , maybeRender (Maybe.map renderIcon header.icon)
             ]
@@ -1916,10 +1919,10 @@ navigationLinks currentView =
         link : String -> View -> Link
         link label view =
             { text = label
+            , action = SetView view
             , title = Nothing
-            , class = (if view == currentView then Just "selected" else Nothing)
-            , msg = SetView view
             , icon = Nothing
+            , class = (if view == currentView then Just "selected" else Nothing)
             }
     in
     List.map2 link labels views
@@ -1929,21 +1932,21 @@ petitionLinks : PetitionList.Item -> Bool -> List Link
 petitionLinks item isSaved =
     [
         { text = "Refresh"
-        , msg = LoadPetition True item.url
+        , action = LoadPetition True item.url
         , title = Just "Reload data for this petition"
         , icon = Nothing
         , class = Nothing
         }
     ,   (if isSaved then
             { text = "Unsave"
-            , msg = UnsavePetition item
+            , action = UnsavePetition item
             , title = Just "Remove this petition from My Petitions"
             , icon = Nothing
             , class = Nothing
             }
         else
             { text = "Save"
-            , msg = SavePetition item
+            , action = SavePetition item
             , title = Just "Add this petition to My Petitions"
             , icon = Nothing
             , class = Nothing
@@ -1956,13 +1959,13 @@ defaultLinks : List Link
 defaultLinks =
     [
         { text = "My Petitions"
-        , msg = (ShowModal MyPetitions)
+        , action = (ShowModal MyPetitions)
         , title = Just "Saved and recently viewed petitions"
         , icon = Nothing
         , class = Nothing
         }
     ,   { text = "FAQ"
-        , msg = (ShowModal FAQ)
+        , action = (ShowModal FAQ)
         , title = Just "Frequently asked questions"
         , icon = Nothing
         , class = Nothing
@@ -2416,6 +2419,9 @@ withoutJsonExtension =
 totalSignatures : List { a | signatures : Int } -> Int
 totalSignatures list  =
     List.foldl (\a total -> total + a.signatures) 0 list
+
+
+-- URL Helpers
 
 
 baseUrl : String

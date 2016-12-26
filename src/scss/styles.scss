@@ -170,7 +170,7 @@ header {
 
     @include at-or-below($breakpoint-menu) {
         @for $i from 1 through 6 {
-            &.menu-expanded-#{$i} {
+            .menu-expanded-#{$i} & {
                 height: (($i+1) * $height) + 1em;
             }
         }

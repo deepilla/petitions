@@ -42,8 +42,8 @@ type Modal
 
 
 type MenuState
-    = MenuHidden
-    | MenuExpanded Int
+    = Hidden
+    | Expanded
 
 
 type PetitionState
@@ -233,7 +233,7 @@ initialModel =
     , view = Summary
     , options = defaultReportOptions
     , modal = Nothing
-    , menuState = MenuHidden
+    , menuState = Hidden
     , recent = []
     , saved = []
     , urlGenerator = Nothing
@@ -256,13 +256,12 @@ port setLocalStorage : (String, String) -> Cmd msg
 type Msg
     -- User actions
     = Start
-    | ExpandMenu Int
-    | HideMenu
     | LoadPetition Bool String
     | LoadRandomPetition
     | SetView View
     | ShowModal Modal
     | HideModal
+    | SetMenuState MenuState
     | SavePetition PetitionList.Item
     | UnsavePetition PetitionList.Item
     -- User inputs
@@ -397,11 +396,14 @@ update msg model =
         HideModal ->
             (,) (updateModal Nothing model) Cmd.none
 
-        ExpandMenu length ->
-            (,) (updateMenuState (MenuExpanded length) model) Cmd.none
-
-        HideMenu ->
-            (,) (updateMenuState MenuHidden model) Cmd.none
+        SetMenuState state ->
+            let
+                model_ =
+                    { model
+                        | menuState = state
+                    }
+            in
+            (,) model_ Cmd.none
 
         SetView view ->
             let
@@ -487,13 +489,6 @@ updateModal : (Maybe Modal) -> Model -> Model
 updateModal maybeModal model =
     { model
         | modal = maybeModal
-    }
-
-
-updateMenuState : MenuState -> Model -> Model
-updateMenuState state model =
-    { model
-        | menuState = state
     }
 
 
@@ -652,16 +647,6 @@ maybeRender =
     Maybe.withDefault (Html.text "")
 
 
-maybeClasses : List (Maybe String) -> Html.Attribute Msg
-maybeClasses maybeValues =
-    let
-        toTuple : Maybe String -> (String, Bool)
-        toTuple maybeValue =
-            (Maybe.withDefault "" maybeValue, maybeValue /= Nothing)
-    in
-    Attributes.classList (List.map toTuple maybeValues)
-
-
 renderIcon : String -> Html Msg
 renderIcon iconClass =
     Html.i
@@ -703,35 +688,41 @@ renderPage menuState page =
                 |> listToMaybe
                 |> Maybe.map (Html.ul [ Attributes.class class ])
 
+        batch : Link -> Link
+        batch link =
+            case menuState of
+                Expanded ->
+                    { link
+                        | action = BatchUpdate [ SetMenuState Hidden, link.action ]
+                    }
+                Hidden ->
+                    link
+
         home : Link
         home =
-            homeLink page.type_
+            batch (homeLink page.type_)
 
-        hamburger : Int -> Link
-        hamburger menuLength =
-            hamburgerLink menuState menuLength
+        hamburger : Link
+        hamburger =
+            hamburgerLink menuState
 
         menu : Maybe (Html Msg)
         menu =
             page.menuitems
-                |> List.map (\link -> { link | action = BatchUpdate [ HideMenu, link.action ] })
+                |> List.map batch
                 |> renderMenu "menu"
 
         menuToggle : Maybe (Html Msg)
         menuToggle =
-            page.menuitems
-                |> listToMaybe
-                |> Maybe.map List.length
-                |> Maybe.map hamburger
-                |> Maybe.map renderLink
+            Maybe.map (always (renderLink hamburger)) menu
 
         menuClass : String
         menuClass =
             case menuState of
-                MenuHidden ->
-                    "menu-hidden"
-                MenuExpanded length ->
-                    "menu-expanded-" ++ toString length
+                Expanded ->
+                    "menu-expanded-" ++ toString (List.length page.menuitems)
+                Hidden ->
+                    ""
 
         nav : Maybe (Html Msg)
         nav =
@@ -747,17 +738,17 @@ renderPage menuState page =
                     Nothing
     in
     Html.div
-        [ maybeClasses
-            [ page.class
-            , Maybe.map (always "full-height") footer
+        [ Attributes.classList
+            [ (Maybe.withDefault "" page.class, page.class /= Nothing)
+            , ("full-height", footer /= Nothing)
+            , (menuClass, menuState == Expanded)
             ]
         ]
         [ Html.div
-            [ maybeClasses
-                [ Maybe.map (always "content-wrapper") footer ]
+            [ Attributes.classList
+                [ ("content-wrapper", footer /= Nothing) ]
             ]
-            [ Html.header
-                [ Attributes.class menuClass ]
+            [ Html.header []
                 [ Html.h1 []
                     [ renderLink home ]
                 , maybeRender menuToggle
@@ -802,19 +793,19 @@ homeLink type_ =
             }
 
 
-hamburgerLink : MenuState -> Int -> Link
-hamburgerLink menuState menuLength =
+hamburgerLink : MenuState -> Link
+hamburgerLink menuState =
     case menuState of
-        MenuHidden ->
+        Hidden ->
             { text = "Menu"
-            , action = ExpandMenu menuLength
+            , action = SetMenuState Expanded
             , title = Just "Show Menu"
             , icon = Just "icon-menu"
             , class = Just "menu-toggle"
             }
-        MenuExpanded _ ->
+        Expanded ->
             { text = "Menu"
-            , action = HideMenu
+            , action = SetMenuState Hidden
             , title = Just "Hide Menu"
             , icon = Just "icon-cancel"
             , class = Just "menu-toggle"
@@ -824,13 +815,64 @@ hamburgerLink menuState menuLength =
 buildHomePage : Model -> Page
 buildHomePage model =
     let
+        input : String
+        input =
+            String.trim model.input
+
+        url : String
+        url =
+            if not (String.isEmpty input) && String.all Char.isDigit input then
+                urlWithId input
+            else
+                input
+
+        isValidUrl : Bool
+        isValidUrl =
+            -- TODO: A better check for valid URLs (regex?).
+            (String.startsWith "http://" url) || (String.startsWith "https://" url)
+
+        batch : Msg -> Msg
+        batch msg =
+            case model.menuState of
+                Expanded ->
+                    BatchUpdate
+                        [ SetMenuState Hidden
+                        , msg
+                        ]
+                Hidden ->
+                    msg
+
         content : List (Html Msg)
         content =
-            [ renderInput model.input
+            [ Html.form
+                [ Events.onSubmit (batch (LoadPetition False url))
+                , Attributes.class "textbox"
+                ]
+                [ Html.label
+                    [ Attributes.for "textbox-input" ]
+                    [ renderIcon "icon-search"
+                    , Html.span
+                        [ Attributes.class "iconed" ]
+                        [ Html.text "URL" ]
+                    ]
+                , Html.input
+                    [ Events.onInput UpdateInput
+                    , Attributes.id "textbox-input"
+                    , Attributes.value model.input
+                    , Attributes.autofocus True
+                    , Attributes.placeholder "Enter the URL of a petition"
+                    , Attributes.accesskey 'u'
+                    ] []
+                , Html.button
+                    [ Attributes.title "Fetch data for this petition"
+                    , Attributes.disabled (not isValidUrl)
+                    ]
+                    [ Html.text "Go" ]
+                ]
             , Html.p []
                 [ Html.text "(or "
                 , Html.a
-                    [ Events.onClick LoadRandomPetition
+                    [ Events.onClick (batch LoadRandomPetition)
                     , Attributes.href "javascript:;"
                     ]
                     [ Html.text "click here" ]
@@ -1640,53 +1682,6 @@ renderConstituencies groupBy constituencies =
         ]
 
 
-renderInput : String -> Html Msg
-renderInput currentValue =
-    let
-        url : String
-        url =
-            let
-                value : String
-                value =
-                    String.trim currentValue
-            in
-            if not (String.isEmpty value) && String.all Char.isDigit value then
-                urlWithId value
-            else
-                value
-
-        isValid : Bool
-        isValid =
-            -- TODO: A better check for valid URLs (regex?).
-            (String.startsWith "http://" url) || (String.startsWith "https://" url)
-    in
-    Html.form
-        [ Events.onSubmit (LoadPetition False url)
-        , Attributes.class "textbox"
-        ]
-        [ Html.label
-            [ Attributes.for "textbox-input" ]
-            [ renderIcon "icon-search"
-            , Html.span
-                [ Attributes.class "iconed" ]
-                [ Html.text "URL" ]
-            ]
-        , Html.input
-            [ Events.onInput UpdateInput
-            , Attributes.id "textbox-input"
-            , Attributes.autofocus True
-            , Attributes.placeholder "Enter the URL of a petition"
-            , Attributes.value currentValue
-            , Attributes.accesskey 'u'
-            ] []
-        , Html.button
-            [ Attributes.title "Fetch data for this petition"
-            , Attributes.disabled (not isValid)
-            ]
-            [ Html.text "Go" ]
-        ]
-
-
 renderPetitionListWith : (String -> Msg) -> PetitionList -> Maybe (Html Msg)
 renderPetitionListWith onClick items =
     let
@@ -1985,10 +1980,18 @@ port onWindowResized : (Int -> msg) -> Sub msg
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.batch
-        [ onWindowResized (always HideMenu)
-        , onLocalStorage (uncurry OnLocalStorage)
+subscriptions model =
+    let
+        batch : List (Sub Msg, Bool) -> Sub Msg
+        batch tuples =
+            tuples
+                |> List.filter Tuple.second
+                |> List.map Tuple.first
+                |> Sub.batch
+    in
+    batch
+        [ (onLocalStorage (uncurry OnLocalStorage), True)
+        , (onWindowResized (always (SetMenuState Hidden)), model.menuState == Expanded)
         ]
 
 

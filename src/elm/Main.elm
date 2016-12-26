@@ -37,7 +37,8 @@ type View
 
 
 type Modal
-    = FAQ
+    = NoModal
+    | FAQ
     | MyPetitions
 
 
@@ -217,7 +218,7 @@ type alias Model =
     , state : AppState
     , view : View
     , options : ReportOptions
-    , modal : Maybe Modal
+    , modal : Modal
     , menuState : MenuState
     , recent : PetitionList
     , saved : PetitionList
@@ -232,7 +233,7 @@ initialModel =
     , state = Initial
     , view = Summary
     , options = defaultReportOptions
-    , modal = Nothing
+    , modal = NoModal
     , menuState = Hidden
     , recent = []
     , saved = []
@@ -259,8 +260,7 @@ type Msg
     | LoadPetition Bool String
     | LoadRandomPetition
     | SetView View
-    | ShowModal Modal
-    | HideModal
+    | SetModal Modal
     | SetMenuState MenuState
     | SavePetition PetitionList.Item
     | UnsavePetition PetitionList.Item
@@ -390,11 +390,14 @@ update msg model =
         UnsavePetition item ->
             updateSavedPetitions (PetitionList.remove item model.saved) model
 
-        ShowModal modal ->
-            (,) (updateModal (Just modal) model) Cmd.none
-
-        HideModal ->
-            (,) (updateModal Nothing model) Cmd.none
+        SetModal modal ->
+            let
+                model_ =
+                    { model
+                        | modal = modal
+                    }
+            in
+            (,) model_ Cmd.none
 
         SetMenuState state ->
             let
@@ -467,7 +470,7 @@ update msg model =
         -- when you select a petition from the My Petitions
         -- modal screen, the app has to close the modal AND
         -- THEN load the petition. That involves two separate
-        -- Msgs: HideModal and LoadPetition.
+        -- Msgs: SetModal and LoadPetition.
         --
         -- BatchUpdate is a flexible way to handle these cases.
         -- It takes an arbitrary list of Msgs and calls update
@@ -483,13 +486,6 @@ update msg model =
                     update msg model
             in
             List.foldl update_ (model, Cmd.none) msgs
-
-
-updateModal : (Maybe Modal) -> Model -> Model
-updateModal maybeModal model =
-    { model
-        | modal = maybeModal
-    }
 
 
 updateReportOptions : ReportOptions -> Model -> Model
@@ -626,11 +622,11 @@ view model =
             renderPage model.menuState
     in
     case model.modal of
-        Just FAQ ->
+        FAQ ->
             render buildFAQPage
-        Just MyPetitions ->
+        MyPetitions ->
             render (buildMyPetitionsPage model.saved model.recent)
-        Nothing ->
+        NoModal ->
             case model.state of
                 Initial ->
                     render (buildHomePage model)
@@ -786,7 +782,7 @@ homeLink type_ =
             }
         ModalPage name ->
             { text = name
-            , action = HideModal
+            , action = SetModal NoModal
             , title = Just "Back"
             , icon = Just "icon-back"
             , class = Nothing
@@ -1029,7 +1025,7 @@ buildMyPetitionsPage saved recent =
         msg : String -> Msg
         msg url =
             BatchUpdate
-                [ HideModal
+                [ SetModal NoModal
                 , LoadPetition False url
                 ]
 
@@ -1954,13 +1950,13 @@ defaultLinks : List Link
 defaultLinks =
     [
         { text = "My Petitions"
-        , action = (ShowModal MyPetitions)
+        , action = SetModal MyPetitions
         , title = Just "Saved and recently viewed petitions"
         , icon = Nothing
         , class = Nothing
         }
     ,   { text = "FAQ"
-        , action = (ShowModal FAQ)
+        , action = SetModal FAQ
         , title = Just "Frequently asked questions"
         , icon = Nothing
         , class = Nothing

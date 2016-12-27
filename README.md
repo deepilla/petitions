@@ -2,11 +2,11 @@
 
 Petitions is a viewer for UK Government Petitions data.
 
-The [UK Government Petitions](https://petition.parliament.uk/) website is like change.org for political issues affecting the UK. This app shows petition signatures broken out by country and by UK constituency. Try it out [here](http://petitions.deepilla.com).
+The [UK Government Petitions](https://petition.parliament.uk/) website is like change.org for political issues affecting the UK. This app shows petition signatures broken out by country and by parliamentary constituency. Try it out [here](http://petitions.deepilla.com).
 
 ## Install/Build
 
-Petitions is made with [Elm](http://elm-lang.org/) and [Sass](http://sass-lang.com/). Builds are automated with [NPM](https://www.npmjs.com/) scripts (compatible with [Yarn](https://yarnpkg.com/)). If you don't have NPM/Yarn, it's easy enough to build the project manually.
+Petitions is made with [Elm](http://elm-lang.org/) and [Sass](http://sass-lang.com/). The easiest way to build it is with the provided [NPM](https://www.npmjs.com/) scripts (also compatible with [Yarn](https://yarnpkg.com/)). But if you don't have NPM/Yarn, it's easy enough to build the project manually.
 
 Start by cloning the repo and then do one of the following:
 
@@ -23,17 +23,17 @@ Start by cloning the repo and then do one of the following:
 3. Copy the contents of `assets` to your build folder
 4. From the project root, compile the Elm code with `elm-make --output=path/to/build/folder/assets/js/elm.js src/elm/Main.elm`
 5. Compile the Sass files with `sass src/scss/styles.scss:path/to/build/folder/assets/css/styles.css`
-6. You can now serve/deploy the project from your build folder (or navigate to the files directly with file:///path/to/build/folder/index.html)
+6. You can now serve the project from your build folder (or navigate to the files directly with file:///path/to/build/folder/index.html)
 
 ## TODO
 
-### Features
+### Functionality
 
 - Search for petitions
-- Enable browser history/title (via History API and document.title)
+- Browser history/titles (via History API and document.title)
 - Transitions between screens
 - Show a "Try again" link when a petition fails to load
-- Handle edge cases sensibly (e.g. no signatures, 1 signature, all signatures in 1 country)
+- Handle edge cases sensibly (e.g. no signatures, one signature, all signatures in one country)
 - Warn if localStorage is unavailable
 - Add remove/clear links to petition lists
 
@@ -44,8 +44,9 @@ Start by cloning the repo and then do one of the following:
 ### Project
 
 - Tests
-
-### Build
-
-- Make sure the build scripts work on Windows
 - [Uglify](https://www.npmjs.com/package/uglify-js) Elm JS
+- Make sure the build scripts work on Windows
+
+## Licensing
+
+Petitions is provided under an [MIT License](http://choosealicense.com/licenses/mit/). See the [LICENSE](LICENSE) file for details.

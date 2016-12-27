@@ -742,7 +742,7 @@ renderPage menuState page =
         ]
         [ Html.div
             [ Attributes.classList
-                [ ("content-wrapper", footer /= Nothing) ]
+                [ ("non-footer-content", footer /= Nothing) ]
             ]
             [ Html.header []
                 [ Html.h1 []

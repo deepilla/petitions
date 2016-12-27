@@ -34,7 +34,7 @@ $gutter: 2em;
     background-color: $color-contrast;
 }
 
-@include sticky-footer(".content-wrapper", $height-footer + $height-footer-padding);
+@include sticky-footer(".non-footer-content", $height-footer + $height-footer-padding);
 
 body {
     color: $color-text;

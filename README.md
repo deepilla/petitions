@@ -20,7 +20,7 @@ Start by cloning the repo and then do one of the following:
 
 1. Make sure you have Elm and Sass installed
 2. Create a build folder for the project
-3. Copy the contents of `assets` to your build folder
+3. Copy the contents of `static` to your build folder
 4. From the project root, compile the Elm code with `elm-make --output=path/to/build/folder/assets/js/elm.js src/elm/Main.elm`
 5. Compile the Sass files with `sass src/scss/styles.scss:path/to/build/folder/assets/css/styles.css`
 6. You can now serve the project from your build folder (or navigate to the files directly with file:///path/to/build/folder/index.html)

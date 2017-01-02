@@ -13,7 +13,7 @@
   },
   "scripts": {
     "clean": "rimraf dist",
-    "copy": "copyfiles -u 1 'assets/**/*' dist",
+    "copy": "copyfiles -u 1 'static/**/*' dist",
     "build:sass": "node-sass --output dist/assets/css src/scss",
     "build:elm": "elm-make src/elm/Main.elm --warn --output dist/assets/js/elm.js",
     "watch:sass": "npm run build:sass -- --source-map true --watch",

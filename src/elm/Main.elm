@@ -53,19 +53,6 @@ type PetitionState
     | Rejected Date
 
 
-makePetitionStateDecoder : String -> Json.Decoder PetitionState
-makePetitionStateDecoder state =
-    case String.toLower (String.trim state) of
-        "open" ->
-            Json.succeed Open
-        "closed" ->
-            Json.map Closed (Json.at ["data", "attributes", "closed_at"] dateDecoder)
-        "rejected" ->
-            Json.map Rejected (Json.at ["data", "attributes", "rejected_at"] dateDecoder)
-        _ ->
-            Json.fail ("Unexpected petition state " ++ state)
-
-
 type alias Country =
     { name : String
     , signatures : Int
@@ -94,13 +81,6 @@ type alias Constituency =
     }
 
 
-makeConstituencyInfoDecoder : String -> Json.Decoder Constituencies.Item
-makeConstituencyInfoDecoder code =
-    Constituencies.get code
-        |> Maybe.map Json.succeed
-        |> Maybe.withDefault (Json.fail ("Unknown constituency " ++ code))
-
-
 constituencyDecoder : Json.Decoder Constituency
 constituencyDecoder =
     Json.map4 Constituency
@@ -109,7 +89,14 @@ constituencyDecoder =
         (Json.field "signature_count" Json.int)
         -- Look up constituency info using the ONS code.
         ((Json.field "ons_code" Json.string)
-            |> Json.andThen makeConstituencyInfoDecoder)
+            |> Json.andThen constituencyInfoDecoder)
+
+
+constituencyInfoDecoder : String -> Json.Decoder Constituencies.Item
+constituencyInfoDecoder code =
+    Constituencies.get code
+        |> Maybe.map Json.succeed
+        |> Maybe.withDefault (Json.fail ("Unknown constituency " ++ code))
 
 
 type alias Petition =
@@ -142,12 +129,25 @@ petitionDecoder =
                   )
         |> andMap (Json.at ["data", "attributes", "creator_name"] (Json.nullable Json.string))
         |> andMap (Json.at ["data", "attributes", "created_at"] dateDecoder)
-        |> andMap (Json.andThen makePetitionStateDecoder
+        |> andMap (Json.andThen petitionStateDecoder
                     (Json.at ["data", "attributes", "state"] Json.string)
                   )
         |> andMap (Json.at ["data", "attributes", "signature_count"] Json.int)
         |> andMap (Json.at ["data", "attributes", "signatures_by_country"] (Json.list countryDecoder))
         |> andMap (Json.at ["data", "attributes", "signatures_by_constituency"] (Json.list constituencyDecoder))
+
+
+petitionStateDecoder : String -> Json.Decoder PetitionState
+petitionStateDecoder state =
+    case String.toLower (String.trim state) of
+        "open" ->
+            Json.succeed Open
+        "closed" ->
+            Json.map Closed (Json.at ["data", "attributes", "closed_at"] dateDecoder)
+        "rejected" ->
+            Json.map Rejected (Json.at ["data", "attributes", "rejected_at"] dateDecoder)
+        _ ->
+            Json.fail ("Unexpected petition state " ++ state)
 
 
 type SortBy
@@ -676,13 +676,17 @@ renderLink link =
 renderPage : MenuState -> Page -> Html Msg
 renderPage menuState page =
     let
-        renderMenu : String -> List Link -> Maybe (Html Msg)
+        renderMenu : String -> List Link -> Html Msg
         renderMenu class links =
+            let
+                class_ : String
+                class_ =
+                    class ++ " " ++ class ++ "-items-" ++ toString (List.length links)
+            in
             links
                 |> List.map renderLink
                 |> List.map (\a -> Html.li [] [ a ])
-                |> listToMaybe
-                |> Maybe.map (Html.ul [ Attributes.class class ])
+                |> Html.ul [ Attributes.class class_ ]
 
         batch : Link -> Link
         batch link =
@@ -698,32 +702,22 @@ renderPage menuState page =
         home =
             batch (homeLink page.type_)
 
-        hamburger : Link
-        hamburger =
-            hamburgerLink menuState
-
         menu : Maybe (Html Msg)
         menu =
             page.menuitems
                 |> List.map batch
-                |> renderMenu "menu"
+                |> listToMaybe
+                |> Maybe.map (renderMenu "menu")
 
-        menuToggle : Maybe (Html Msg)
-        menuToggle =
-            Maybe.map (always (renderLink hamburger)) menu
-
-        menuClass : String
-        menuClass =
-            case menuState of
-                Expanded ->
-                    "menu-expanded-" ++ toString (List.length page.menuitems)
-                Hidden ->
-                    ""
+        hamburger : Maybe (Html Msg)
+        hamburger =
+            Maybe.map (always (renderLink (hamburgerLink menuState))) menu
 
         nav : Maybe (Html Msg)
         nav =
             page.navitems
-                |> renderMenu "nav"
+                |> listToMaybe
+                |> Maybe.map (renderMenu "nav")
 
         footer : Maybe (Html Msg)
         footer =
@@ -734,10 +728,11 @@ renderPage menuState page =
                     Nothing
     in
     Html.div
-        [ Attributes.classList
-            [ (Maybe.withDefault "" page.class, page.class /= Nothing)
-            , ("full-height", footer /= Nothing)
-            , (menuClass, menuState == Expanded)
+        [ Attributes.id "elm-body"
+        , Attributes.classList
+            [ ("full-height", footer /= Nothing)
+            , ("menu-expanded-" ++ toString (List.length page.menuitems), menuState == Expanded)
+            , (Maybe.withDefault "" page.class, page.class /= Nothing)
             ]
         ]
         [ Html.div
@@ -747,24 +742,21 @@ renderPage menuState page =
             [ Html.header []
                 [ Html.h1 []
                     [ renderLink home ]
-                , maybeRender menuToggle
+                , maybeRender hamburger
                 , maybeRender menu
                 ]
             , Html.div
                 [ Attributes.class "main" ]
-                [ Html.div
-                    [ Attributes.class "page" ]
-                    (List.append
-                        [ Html.div
-                            [ Attributes.class "titles" ]
-                            [ Html.h2 []
-                                [ Html.text page.title ]
-                            , maybeRender nav
-                            ]
+                (List.append
+                    [ Html.div
+                        [ Attributes.class "titles" ]
+                        [ Html.h2 []
+                            [ Html.text page.title ]
+                        , maybeRender nav
                         ]
-                        page.content
-                    )
-                ]
+                    ]
+                    page.content
+                )
             ]
         , maybeRender footer
         ]
@@ -797,14 +789,14 @@ hamburgerLink menuState =
             , action = SetMenuState Expanded
             , title = Just "Show Menu"
             , icon = Just "icon-menu"
-            , class = Just "menu-toggle"
+            , class = Just "hamburger"
             }
         Expanded ->
             { text = "Menu"
             , action = SetMenuState Hidden
             , title = Just "Hide Menu"
             , icon = Just "icon-cancel"
-            , class = Just "menu-toggle"
+            , class = Just "hamburger"
             }
 
 
@@ -912,6 +904,7 @@ buildPetitionPage model petition =
         , content = content
         , navitems = navigationLinks model.view
         , menuitems = (petitionLinks item isSaved) ++ defaultLinks
+        , class = Just "pg-petition"
     }
 
 
@@ -1088,6 +1081,7 @@ renderFooter =
                 , Attributes.target "_blank"
                 ]
                 [ Html.text "A deepilla jawn" ]
+{--
             , Html.text ". Made with "
             , Html.a
                 [ Attributes.href "http://elm-lang.org"
@@ -1102,6 +1096,7 @@ renderFooter =
                 , Attributes.title "CSS with superpowers"
                 ]
                 [ Html.text "Sass" ]
+--}
             , Html.text ". Contains public sector information licensed under the "
             , Html.a
                 [ Attributes.href "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/"
@@ -1117,15 +1112,15 @@ renderPetitionSummary : Petition -> ReportOptions -> List (Html Msg)
 renderPetitionSummary petition opts =
     [ renderPercentages petition.signatures petition.countries
     , renderTopCountries 10 opts.topCountryFilter petition.countries
-    , renderConstituencies opts.constituencyGrouping petition.constituencies
+    , renderRegions opts.constituencyGrouping petition.constituencies
     ]
 
 
 renderPetitionDetail : Petition -> List (Html Msg)
 renderPetitionDetail petition =
     let
-        para : String -> Html Msg
-        para text =
+        p : String -> Html Msg
+        p text =
             Html.p [] [ Html.text text ]
 
         formatPetitionState : PetitionState -> String
@@ -1147,40 +1142,39 @@ renderPetitionDetail petition =
                     "This petition ended on " ++ formatDate date
                 Rejected date ->
                     "This petition was rejected on " ++ formatDate date
-
-        linkToPetition : Html Msg
-        linkToPetition =
-            Html.a
-                [ Attributes.href (withoutJsonExtension petition.url)
-                , Attributes.target "_blank"
-                , Attributes.class "button"
-                , Attributes.title ("View this petition on " ++ baseUrl)
-                ]
-                [ Html.text "Open this petition" ]
     in
-    [ Html.ol
-        [ Attributes.class "meta" ]
-        [ Html.dt []
-            [ Html.text "Created by" ]
-        , Html.dd []
-            [ Html.text (Maybe.withDefault "Unknown" petition.creator) ]
-        , Html.dt []
-            [ Html.text "Created on" ]
-        , Html.dd []
-            [ Html.text (formatDate petition.created) ]
-        , Html.dt []
-            [ Html.text "Status" ]
-        , Html.dd
-            [ Attributes.title (formatPetitionStateTitle petition.state) ]
-            [ Html.text (formatPetitionState petition.state) ]
-        ]
-    , Html.div
-        [ Attributes.class "description" ]
-        (List.concat
-            [ (List.map para petition.description)
-            , [linkToPetition]
+    [ Html.div
+        [ Attributes.class "petition-details" ]
+        [ Html.div
+            [ Attributes.class "description" ]
+            (List.append
+                (List.map p petition.description)
+                [ Html.a
+                    [ Attributes.href (withoutJsonExtension petition.url)
+                    , Attributes.target "_blank"
+                    , Attributes.class "button"
+                    , Attributes.title ("View this petition on " ++ baseUrl)
+                    ]
+                    [ Html.text "Open this petition" ]
+                ]
+            )
+        , Html.ol
+            [ Attributes.class "meta" ]
+            [ Html.dt []
+                [ Html.text "Created by" ]
+            , Html.dd []
+                [ Html.text (Maybe.withDefault "Unknown" petition.creator) ]
+            , Html.dt []
+                [ Html.text "Created on" ]
+            , Html.dd []
+                [ Html.text (formatDate petition.created) ]
+            , Html.dt []
+                [ Html.text "Status" ]
+            , Html.dd
+                [ Attributes.title (formatPetitionStateTitle petition.state) ]
+                [ Html.text (formatPetitionState petition.state) ]
             ]
-        )
+        ]
     ]
 
 
@@ -1216,21 +1210,18 @@ renderPetitionCountries petition opts =
                 { text = "Country"
                 , title = Just "Sort by Country"
                 , align = Nothing
-                , span = Nothing
                 , action = Just (SortCountryData SortByCountry)
                 , icon = Just (iconClass SortByCountry)
                 }
             ,   { text = "Signatures"
                 , title = Just "Sort by Signatures"
                 , align = Just AlignCenter
-                , span = Nothing
                 , action = Just (SortCountryData SortBySignatures)
                 , icon = Just (iconClass SortBySignatures)
                 }
             ,   { text = "Signatures (%)"
                 , title = Nothing
                 , align = Just AlignCenter
-                , span = Nothing
                 , action = Nothing
                 , icon = Nothing
                 }
@@ -1242,17 +1233,14 @@ renderPetitionCountries petition opts =
                 { value = .name
                 , title = Nothing
                 , align = Nothing
-                , span = Nothing
                 }
             ,   { value = .signatures >> thousands
                 , title = Nothing
                 , align = Just AlignCenter
-                , span = Nothing
                 }
             ,   { value = .signatures >> formatPercentage (dps 1) total
                 , title = Just (.signatures >> formatPercentage (dps 4) total)
                 , align = Just AlignCenter
-                , span = Nothing
                 }
             ]
 
@@ -1262,17 +1250,14 @@ renderPetitionCountries petition opts =
                 { value = always label
                 , title = Nothing
                 , align = Nothing
-                , span = Nothing
                 }
             ,   { value = always (thousands amount)
                 , title = Nothing
                 , align = Just AlignCenter
-                , span = Nothing
                 }
             ,   { value = always ""
                 , title = Nothing
                 , align = Nothing
-                , span = Nothing
                 }
             ]
 
@@ -1300,7 +1285,7 @@ renderPetitionCountries petition opts =
                 ++ pluraliseCountries count
             )
         ]
-    , renderTable headers body totals items
+    , renderTable "tabular country-data" headers body totals items
     ]
 
 
@@ -1349,35 +1334,30 @@ renderPetitionConstituencies petition opts =
                 { text = "Constituency"
                 , title = Just "Sort by Constituency"
                 , align = Nothing
-                , span = Nothing
                 , action = Just (SortConstituencyData SortByConstituency)
                 , icon = Just (iconClass SortByConstituency)
                 }
             ,   { text = "Country"
                 , title = Just "Sort by Country"
                 , align = Nothing
-                , span = Nothing
                 , action = Just (SortConstituencyData SortByCountry)
                 , icon = Just (iconClass SortByCountry)
                 }
             ,   { text = "Region"
                 , title = Nothing
                 , align = Nothing
-                , span = Nothing
                 , action = Nothing
                 , icon = Nothing
                 }
             ,   { text = "Signatures"
                 , title = Just "Sort by Signatures"
                 , align = Just AlignCenter
-                , span = Nothing
                 , action = Just (SortConstituencyData SortBySignatures)
                 , icon = Just (iconClass SortBySignatures)
                 }
             ,   { text = "Signatures (%)"
                 , title = Nothing
                 , align = Just AlignCenter
-                , span = Nothing
                 , action = Nothing
                 , icon = Nothing
                 }
@@ -1389,27 +1369,22 @@ renderPetitionConstituencies petition opts =
                 { value = .name
                 , title = Just title
                 , align = Nothing
-                , span = Nothing
                 }
             ,   { value = getConstituencyCountry
                 , title = Nothing
                 , align = Nothing
-                , span = Nothing
                 }
             ,   { value = getConstituencyRegion >> Maybe.withDefault ""
                 , title = Nothing
                 , align = Nothing
-                , span = Nothing
                 }
             ,   { value = .signatures >> thousands
                 , title = Nothing
                 , align = Just AlignCenter
-                , span = Nothing
                 }
             ,   { value = .signatures >> formatPercentage (dps 1) total
                 , title = Just (.signatures >> formatPercentage (dps 4) total)
                 , align = Just AlignCenter
-                , span = Nothing
                 }
             ]
 
@@ -1419,17 +1394,22 @@ renderPetitionConstituencies petition opts =
                 { value = always label
                 , title = Nothing
                 , align = Nothing
-                , span = Just 3
-                }
-            ,   { value = always (thousands amount)
-                , title = Nothing
-                , align = Just AlignCenter
-                , span = Nothing
                 }
             ,   { value = always ""
                 , title = Nothing
                 , align = Nothing
-                , span = Nothing
+                }
+            ,   { value = always ""
+                , title = Nothing
+                , align = Nothing
+                }
+            ,   { value = always (thousands amount)
+                , title = Nothing
+                , align = Just AlignCenter
+                }
+            ,   { value = always ""
+                , title = Nothing
+                , align = Nothing
                 }
             ]
 
@@ -1457,7 +1437,7 @@ renderPetitionConstituencies petition opts =
                 ++ pluraliseConstituencies count
             )
         ]
-    , renderTable headers body totals items
+    , renderTable "tabular constituency-data" headers body totals items
     ]
 
 
@@ -1474,10 +1454,11 @@ renderPercentages officialTotal countries =
 
         -- NOTE: Type annotations don't work with tuples.
         -- (ukCountries, nonUkCountries) : (List Country, List Country)
-        (ukCountries, nonUkCountries) = List.partition .isUK countries
+        (ukCountries, nonUkCountries) =
+            List.partition .isUK countries
 
-        pie : String -> Int -> Html Msg
-        pie label signatures =
+        renderPercentage : String -> String -> String -> Int -> Int -> Html Msg
+        renderPercentage tag class label total signatures =
             let
                 percent : Float
                 percent =
@@ -1492,47 +1473,65 @@ renderPercentages officialTotal countries =
                     else
                         round percent
             in
-            Html.li
-                [ Attributes.class ("pie pie" ++ toString displayPercent) ]
+            Html.node tag
+                [ Attributes.class (class ++ " percent-" ++ toString displayPercent) ]
+                -- e.g. "96.5% UK (12,360 signatures)"
                 [ Html.span
-                    [ Attributes.class "percent" ]
-                    [ Html.text ((dps 1 percent) ++ "%") ]
-                , Html.text " "
-                , Html.span
-                    [ Attributes.class "label" ]
-                    [ Html.text label ]
-                , Html.text " "
-                , Html.span
-                    [ Attributes.class "brackets" ]
-                    [ Html.text "(" ]
-                , Html.span
-                    [ Attributes.class "count" ]
-                    [ Html.strong []
-                        [ Html.text (thousands signatures) ]
-                    , Html.text (" " ++ pluraliseSignatures signatures)
+                    [ Attributes.class "inner" ]
+                    [ Html.span
+                        [ Attributes.class "percentage" ]
+                        [ Html.text ((dps 1 percent) ++ "%") ]
+                    , Html.text " "
+                    , Html.span
+                        [ Attributes.class "label" ]
+                        [ Html.text label ]
                     ]
+                , Html.text " "
                 , Html.span
-                    [ Attributes.class "brackets" ]
-                    [ Html.text ")" ]
+                    [ Attributes.class "outer" ]
+                    [ Html.span
+                        [ Attributes.class "brackets" ]
+                        [ Html.text "(" ]
+                    , Html.span
+                        [ Attributes.class "count" ]
+                        [ Html.text (thousands signatures) ]
+                    , Html.text " "
+                    , Html.span
+                        [ Attributes.class "signatures" ]
+                        [ Html.text (pluraliseSignatures signatures) ]
+                    , Html.span
+                        [ Attributes.class "brackets" ]
+                        [ Html.text ")" ]
+                    ]
                 ]
+
+        renderItem : String -> Int -> Int -> Html Msg
+        renderItem =
+            renderPercentage "li" "pie"
     in
     Html.div
-        [ Attributes.class "percentages" ]
+        [ Attributes.class "summary percentages" ]
         [ Html.p
-            [ Attributes.class "larger" ]
-            [ Html.text "This petition has "
-            , Html.span
-                [ Attributes.class "highlight" ]
-                [ Html.text (thousands total) ]
-            , Html.text (" " ++ pluraliseSignatures total ++ " in ")
-            , Html.span
-                [ Attributes.class "highlight" ]
-                [ Html.text (toString count) ]
-            , Html.text (" " ++ pluraliseCountries count)
+            [ Attributes.class "intro" ]
+            [ Html.span
+                [ Attributes.class "content" ]
+                -- e.g. "This petition has 12,360 signatures in 12 countries"
+                [ Html.span
+                    [ Attributes.class "prefix" ]
+                    [ Html.text "This petition has " ]
+                , Html.span
+                    [ Attributes.class "highlight" ]
+                    [ Html.text (thousands total) ]
+                , Html.text (" " ++ pluraliseSignatures total ++ " in ")
+                , Html.span
+                    [ Attributes.class "highlight" ]
+                    [ Html.text (toString count) ]
+                , Html.text (" " ++ pluraliseCountries count)
+                ]
             ]
         , Html.ul []
-            [ pie "UK" (totalSignatures ukCountries)
-            , pie "Other" (totalSignatures nonUkCountries)
+            [ renderItem "UK" total (totalSignatures ukCountries)
+            , renderItem "Other" total (totalSignatures nonUkCountries)
             ]
         ]
 
@@ -1570,9 +1569,9 @@ renderTopCountries limit countryFilter countries =
 
         radioLabels : List String
         radioLabels =
-            [ "Non-UK Only"
-            , "Non-EU Only"
-            , "All Countries"
+            [ "Non-UK"
+            , "Non-EU"
+            , "All"
             ]
 
         radioValues : List CountryFilter
@@ -1592,7 +1591,8 @@ renderTopCountries limit countryFilter countries =
                 NonEU ->
                     "Non-EU Countries"
     in
-    Html.div []
+    Html.div
+        [ Attributes.class "summary countries" ]
         [ Html.div
             [ Attributes.class "bar-header" ]
             [ Html.h3 []
@@ -1610,8 +1610,8 @@ renderTopCountries limit countryFilter countries =
         ]
 
 
-renderConstituencies : GroupBy -> List Constituency -> Html Msg
-renderConstituencies groupBy constituencies =
+renderRegions : GroupBy -> List Constituency -> Html Msg
+renderRegions groupBy constituencies =
     let
         getKey : Constituency -> String
         getKey constituency =
@@ -1660,7 +1660,8 @@ renderConstituencies groupBy constituencies =
                 GroupByCountry ->
                     "Country"
     in
-    Html.div []
+    Html.div
+        [ Attributes.class "summary constituencies" ]
         [ Html.div
             [ Attributes.class "bar-header" ]
             [ Html.h3 []
@@ -1776,7 +1777,6 @@ type alias Cell a =
     { value : (a -> String)
     , title : Maybe (a -> String)
     , align : Maybe Align
-    , span : Maybe Int
     }
 
 
@@ -1784,7 +1784,6 @@ type alias Header =
     { text : String
     , title : Maybe String
     , align : Maybe Align
-    , span : Maybe Int
     , action : Maybe Msg
     , icon : Maybe String
     }
@@ -1827,7 +1826,6 @@ th header =
     Html.th
         (filterMaybes
             [ Maybe.map Attributes.title header.title
-            , Maybe.map Attributes.colspan header.span
             , Maybe.map alignAttribute header.align
             ]
         )
@@ -1851,7 +1849,6 @@ td cell item =
     Html.td
         (filterMaybes
             [ Maybe.map (\title -> Attributes.title (title item)) cell.title
-            , Maybe.map Attributes.colspan cell.span
             , Maybe.map alignAttribute cell.align
             ]
         )
@@ -1878,10 +1875,10 @@ tfoot rows items =
         |> Maybe.map (Html.tfoot [])
 
 
-renderTable : List Header -> List (Cell a) -> List (List (Cell (List a))) -> List a -> Html Msg
-renderTable headers body totals items =
+renderTable : String -> List Header -> List (Cell a) -> List (List (Cell (List a))) -> List a -> Html Msg
+renderTable class headers body totals items =
     Html.table
-        [ Attributes.class "tabular" ]
+        [ Attributes.class class ]
         [ maybeRender (thead headers)
         , maybeRender (tfoot totals items)
         , maybeRender (tbody body items)
@@ -1891,32 +1888,39 @@ renderTable headers body totals items =
 navigationLinks : View -> List Link
 navigationLinks currentView =
     let
-        labels : List String
-        labels =
-            [ "Summary"
-            , "Detail"
-            , "Countries"
-            , "Constituencies"
-            ]
-
-        views : List View
-        views =
-            [ Summary
-            , Detail
-            , CountryData
-            , ConstituencyData
-            ]
-
-        link : String -> View -> Link
-        link label view =
-            { text = label
-            , action = SetView view
-            , title = Nothing
-            , icon = Nothing
-            , class = (if view == currentView then Just "selected" else Nothing)
-            }
+        selectedClass : View -> Maybe String
+        selectedClass view =
+            if view == currentView then
+                Just "selected"
+            else
+                Nothing
     in
-    List.map2 link labels views
+    [
+        { text = "Summary"
+        , action = SetView Summary
+        , title = Just "View a summary of this petition's signatures"
+        , icon = Just "icon-view-summary"
+        , class = selectedClass Summary
+        }
+    ,   { text = "Details"
+        , action = SetView Detail
+        , title = Just "View the details of this petition"
+        , icon = Just "icon-view-details"
+        , class = selectedClass Detail
+        }
+    ,   { text = "Countries"
+        , action = SetView CountryData
+        , title = Just "View signatures by country"
+        , icon = Just "icon-view-countries"
+        , class = selectedClass CountryData
+        }
+    ,   { text = "Constituencies"
+        , action = SetView ConstituencyData
+        , title = Just "View UK signatures by constituency"
+        , icon = Just "icon-view-constituencies"
+        , class = selectedClass ConstituencyData
+        }
+    ]
 
 
 petitionLinks : PetitionList.Item -> Bool -> List Link

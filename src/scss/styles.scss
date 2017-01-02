@@ -1,6 +1,14 @@
 @import "mixins";
 
+// Below this breakpoint: reduce font size.
+$breakpoint-font-small: 960px;
+// Below this breakpoint: menus change to icons.
+$breakpoint-menu: 800px;
+// Below this breakpoint: move to center alignment.
+$breakpoint-alignment: 960px;
+
 $font-size: 18px;
+$font-size-small: 16px;
 $font-family: Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif;
 $line-height: 1.5;
 
@@ -12,9 +20,9 @@ $color-background: #eeeff1;
 $color-background-darker: darken($color-background, 7.5%);
 $color-text: #121b21;
 $color-text-lighter: #999;
-$color-link: #ff5252;
-$color-link: #d62323;
+$color-link: #cc181e;
 $color-link-hover: darken($color-link, 10%);
+$color-nav: #777;
 $color-contrast: #61c192;
 $color-border: #dbdbdb;
 
@@ -22,12 +30,6 @@ $height-footer: 3.5em;
 $height-footer-padding: 2.5em;
 
 $gutter: 2em;
-
-@mixin at-or-below($breakpoint) {
-    @media (max-width: $breakpoint) {
-        @content;
-    }
-}
 
 @include selection {
     color: white;
@@ -61,10 +63,10 @@ h2 {
 
 h3 {
     font-size: 1.75em;
-}
 
-h4 {
-    font-size: 1.4em;
+    @include at-or-below(600px) {
+        font-size: 1.5em;
+    }
 }
 
 a:link, a:visited {
@@ -122,12 +124,13 @@ a:hover, a:active {
 }
 
 .main {
-    margin: 5em $gutter;
-}
-
-.page {
     max-width: 68em;
-    margin: 0 auto;
+    margin: 5em auto;
+    padding: 0 $gutter;
+
+    @include at-or-below(1400px) {
+        margin: 3em auto;
+    }
 }
 
 .menu, .nav {
@@ -143,7 +146,8 @@ footer {
     color: $color-text-lighter;
     text-align: center;
     height: $height-footer;
-    margin: 0 $gutter;
+    line-height: 1;
+    margin: 0 1em;
     padding-top: $height-footer-padding;
 
     a:link, a:visited {
@@ -158,15 +162,16 @@ footer {
 
 header {
     $height: 4em;
-    $breakpoint-menu: 800px;
 
     height: $height;
     line-height: $height;
     padding: 0 $gutter;
     background-color: white;
     border-bottom: 1px solid $color-border;
-    transition: height .25s;
+    // For absolute positioning of the hamburger menu.
+    position: relative;
     overflow: hidden;
+    transition: height .25s;
 
     @include at-or-below($breakpoint-menu) {
         @for $i from 1 through 6 {
@@ -181,6 +186,10 @@ header {
         float: left;
         line-height: inherit;
 
+        a {
+            display: inline-block;
+        }
+
         i {
             padding-right: 6px;
         }
@@ -188,32 +197,44 @@ header {
         .icon-portcullis {
             float: left;
             font-size: 1.65em;
+            // Line up left edge of the portcullis icon
+            // with left edge of page.
+            margin-left: -.25em;
         }
     }
 
     .menu {
+        $link-spacing: 1em;
+
         float: right;
+        margin-right: -$link-spacing;
         font-size: .9em;
         font-weight: $font-weight-bold;
         text-transform: uppercase;
 
         @include at-or-below($breakpoint-menu) {
-            clear: right;
+            float: none;
+            clear: both;
             text-align: right;
+
+            li {
+                display: block;
+            }
         }
 
-        li {
-            padding-left: 2em;
-
-            @include at-or-below($breakpoint-menu) {
-                display: block;
-                padding-left: 0;
-            }
+        a {
+            display: inline-block;
+            padding: 0 $link-spacing;
         }
     }
 
-    .menu-toggle {
-        float: right;
+    .hamburger {
+        position: absolute;
+        top: 0;
+        right: .75em;
+        height: $height;
+        width: $height;
+        text-align: center;
         display: none;
 
         @include at-or-below($breakpoint-menu) {
@@ -224,15 +245,8 @@ header {
             display: none;
         }
 
-        .icon-menu {
-            font-size: 1.5em;
-        }
-
-        .icon-cancel {
-            font-size: 2em;
-            // Fine tuning of the cancel icon position.
-            position: relative;
-            right: -.25em;
+        i {
+            font-size: 1.85em;
         }
     }
 }
@@ -243,28 +257,108 @@ header {
 
     h2 {
         margin: .75em 0;
+
+        @include at-or-below($breakpoint-alignment) {
+            font-size: 2.25em;
+        }
+
+        @include at-or-below($breakpoint-menu) {
+            font-size: 2em;
+        }
+
+        @include at-or-below(600px) {
+            font-size: 1.8em;
+        }
+
+        @include at-or-below(500px) {
+            font-size: 1.6em;
+        }
     }
 
     .nav {
         font-size: 1.15em;
         margin-top: -.2em;
 
+        @include at-or-below($breakpoint-alignment) {
+            margin-top: 0;
+        }
+
+        @include at-or-below($breakpoint-menu) {
+            max-width: 28em;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
         li {
             padding-right: 2em;
+
+            @include at-or-below($breakpoint-alignment) {
+                padding: 0 1em;
+            }
+
+            @include at-or-below($breakpoint-menu) {
+                padding: 0;
+
+                @at-root {
+                    @for $i from 2 through 6 {
+                        .nav-items-#{$i} li {
+                            width: floor(100% / $i);
+                        }
+                    }
+                }
+            }
         }
 
         a {
             display: inline-block;
+            // For absolute positioning of the ::after
+            // pseudo-element.
+            position: relative;
             padding-bottom: 1.5em;
-            border-bottom: 4px solid transparent;
-            transition: border-color .25s;
+
+            @include at-or-below($breakpoint-menu) {
+                // Expand the clickable area to the entire
+                // parent element.
+                display: block;
+            }
 
             &:link, &:visited {
-                color: inherit;
+                color: $color-nav;
+                transition: color .25s;
             }
 
             &:hover, &:active, &.selected {
-                border-color: initial;
+                color: inherit;
+
+                &::after {
+                    height: 4px;
+                }
+            }
+
+            &::after {
+                content: "";
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 0;
+                background: $color-text;
+                transition: height .25s;
+            }
+        }
+
+        span {
+            @include at-or-below($breakpoint-menu) {
+                display: none;
+            }
+        }
+
+        i {
+            display: none;
+            font-size: 1.5em;
+
+            @include at-or-below($breakpoint-menu) {
+                display: inline-block;
             }
         }
     }
@@ -273,9 +367,15 @@ header {
 // Home page
 
 .pg-home {
-    .page {
+    $breakpoint: 1000px;
+
+    .main {
         max-width: 48em;
         margin-top: 8em;
+
+        @include at-or-below($breakpoint) {
+            margin-top: 3em;
+        }
     }
 
     .titles {
@@ -303,6 +403,14 @@ header {
     // For absolute positioning of the label/button.
     position: relative;
 
+    @include at-or-below(600px) {
+        font-size: 1.2em;
+    }
+
+    @include at-or-below(400px) {
+        font-size: 1em;
+    }
+
     label, input, button {
         outline: 0;
         padding: 0;
@@ -314,7 +422,7 @@ header {
 
     label {
         position: absolute;
-        left: 0;
+        right: 0;
 
         i {
             font-size: 1.05em;
@@ -325,7 +433,8 @@ header {
         width: 100%;
         // Include padding in the width.
         box-sizing: border-box;
-        padding-left: 2.4em;
+        padding-left: 1px;
+        padding-right: 2.4em;
 
         @include input-placeholder {
             opacity: 1;
@@ -361,77 +470,210 @@ header {
     max-width: 48em;
 }
 
+// Petition pages
+
+.pg-petition {
+    @include at-or-below($breakpoint-alignment) {
+        .titles {
+            text-align: center;
+        }
+    }
+}
+
 // Petition Summary page
 
-.pie {
-    @include pie($color-background-darker, $color-contrast, 8.5%, $color-background);
+.summary {
+    margin: 3em 0;
+}
+
+.intro {
+    line-height: 1.25;
+
+    @include at-or-below(1100px) {
+        .prefix {
+            display: none;
+        }
+    }
+
+    @include at-or-below($breakpoint-alignment) {
+        margin-bottom: 3em;
+    }
+
+    @include at-or-below(500px) {
+        margin-bottom: 1.5em;
+    }
 }
 
 .percentages {
-    $text-width: 50%;
-    $pie-chart-diameter: 42%;
+    // Below this breakpoint, pie charts change from
+    // fixed width to percentage width. This value
+    // was chosen to give a smooth transition between
+    // fixed and fluid dimensions.
+    $breakpoint-fluid: 650px;
+
+    $pie-diameter-fixed: 14em;
+    $pie-spacing-fixed: 3em;
+    $pie-total-width-fixed: (2 * $pie-diameter-fixed) + $pie-spacing-fixed;
+    $pie-diameter-fluid: 45%;
+    $pie-spacing-fluid: 100% - (2 * $pie-diameter-fluid);
+    $text-padding: 4em;
 
     @include clearfix;
-    margin-top: 4em;
-    margin-bottom: 3em;
-    // Extra padding at the bottom to make room for
-    // the signature counts (absolutely positioned
-    // under the pie charts).
-    padding-bottom: 2em;
+
+    margin-top: 5em;
+
+    @include at-or-below($breakpoint-alignment) {
+        text-align: center;
+        margin-top: 3.5em;
+    }
+
+    @include at-or-below($breakpoint-menu) {
+        margin-top: 0;
+    }
 
     p, ul {
         float: right;
+
+        @include at-or-below($breakpoint-alignment) {
+            float: none;
+        }
     }
 
     p {
-        width: $text-width;
-        margin-top: 1.25em;
+        width: 100%;
+        margin-left: -$pie-total-width-fixed;
+
+        @include at-or-below($breakpoint-alignment) {
+            width: auto;
+            margin-left: 0;
+        }
     }
 
     ul {
         margin: 0;
         padding-left: 0;
-        width: 100% - $text-width;
-    }
+        width: $pie-total-width-fixed;
 
-    li {
-        // Percentage width and percentage padding are both
-        // relative to the width of the parent container.
-        // Setting top padding equal to the width is an easy
-        // way to maintain equal width and height with a flexible
-        // layout.
-        width: $pie-chart-diameter;
-        padding-top: $pie-chart-diameter;
-        text-align: center;
-        display: inline-block;
-
-        &:first-child {
-            margin-right: 50% - $pie-chart-diameter;
+        @include at-or-below($breakpoint-alignment) {
+            width: auto;
         }
     }
 
-    .percent, .label, .count {
-        z-index: 1;
+    li {
+        display: inline-block;
+        width: $pie-diameter-fixed;
+        height: $pie-diameter-fixed;
+
+        @include at-or-below($breakpoint-fluid) {
+            height: 0;
+            width: $pie-diameter-fluid;
+            padding-top: $pie-diameter-fluid;
+        }
+
+        &:first-child {
+            margin-right: $pie-spacing-fixed;
+
+            @include at-or-below($breakpoint-fluid) {
+                margin-right: $pie-spacing-fluid;
+            }
+        }
+    }
+
+    @at-root .intro .content {
+        $font-size: 2em;
+
+        font-size: $font-size;
+        display: inline-block;
+        padding-left: ($pie-total-width-fixed + $text-padding) / ($font-size / 1em);
+
+        @include at-or-below($breakpoint-alignment) {
+            font-size: 1.75em;
+            padding-left: 0;
+        }
+
+        @include at-or-below(500px) {
+            font-size: 1.5em;
+            padding-left: 0;
+        }
+    }
+}
+
+.pie {
+    $ring-width: 8.5%;
+
+    @include pie-chart($color-background-darker, $color-contrast);
+
+    text-align: center;
+    // Extra space for the signature counts.
+    margin-bottom: 4em;
+
+    @include at-or-below($breakpoint-menu) {
+        margin-bottom: 6em;
+    }
+
+    .inner {
+        position: absolute;
+        top: $ring-width;
+        bottom: $ring-width;
+        left: $ring-width;
+        right: $ring-width;
+        border-radius: 50%;
+        background: $color-background;
+        line-height: 1;
+    }
+
+    .percentage, .label {
         position: absolute;
         left: 0;
         width: 100%;
     }
 
-    .percent {
-        bottom: 50%;
+    .percentage {
+        bottom: 52%;
         font-size: 2em;
         font-weight: $font-weight-bold;
+
+        @include at-or-below(600px) {
+            font-size: 1.85em;
+        }
+
+        @include at-or-below(550px) {
+            font-size: 1.5em;
+        }
+
+        @include at-or-below(500px) {
+            font-size: 1.25em;
+        }
     }
 
     .label {
-        top: 50%;
+        top: 55%;
         font-size: 1.5em;
+
+        @include at-or-below(500px) {
+            font-size: 1.05em;
+        }
+    }
+
+    .outer {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        width: 100%;
+        padding-top: 1.5em;
+        font-size: 1.25em;
+
+        @include at-or-below(500px) {
+            font-size: 1em;
+        }
     }
 
     .count {
-        top: 100%;
-        padding-top: 1em;
-        font-size: 1.25em;
+        font-weight: $font-weight-bolder;
+
+        @include at-or-below($breakpoint-menu) {
+            display: block;
+        }
     }
 
     .brackets {
@@ -441,7 +683,6 @@ header {
 
 .radio {
     cursor: pointer;
-    margin-left: .75em;
 
     span {
         background: $color-background-darker;
@@ -467,6 +708,14 @@ header {
     line-height: 2.25;
     border-spacing: 8px;
 
+    @include at-or-below($breakpoint-menu) {
+        line-height: 1.25;
+
+        .label, .value {
+            display: block;
+        }
+    }
+
     .label {
         width: 14%;
         padding-right: 1%;
@@ -477,6 +726,11 @@ header {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+
+        @include at-or-below($breakpoint-menu) {
+            width: auto;
+            text-align: left;
+        }
     }
 
     .value {
@@ -489,55 +743,133 @@ header {
 }
 
 .bar-header {
-    $line-height: 8em;
+    line-height: 6em;
 
-    line-height: $line-height;
-    margin-top: 2.5em;
+    @include at-or-below($breakpoint-alignment) {
+        text-align: center;
+        line-height: inherit;
+        margin: 1.5em 0;
+    }
 
     h3 {
         float: left;
         margin: 0;
         line-height: inherit;
+
+        @include at-or-below($breakpoint-alignment) {
+            line-height: 1.1;
+            float: none;
+        }
     }
 
     .options {
         float: right;
+
+        @include at-or-below($breakpoint-alignment) {
+            float: none;
+            display: block;
+            margin: 1em 0;
+        }
+    }
+
+    .radio {
+        margin-left: .75em;
+
+        @include at-or-below($breakpoint-alignment) {
+            margin-left: 0;
+
+            span {
+                color: $color-nav;
+                background: inherit;
+            }
+
+            span:hover, :checked + span {
+                color: $color-text;
+            }
+        }
+    }
+}
+
+.countries {
+    .radio:nth-child(1) span::after, .radio:nth-child(2) span::after {
+        content: " Only";
+
+        @include at-or-below(500px) {
+            content: none;
+        }
+    }
+
+    .radio:nth-child(3) span::after {
+        content: " Countries";
+
+        @include at-or-below(500px) {
+            content: none;
+        }
     }
 }
 
 // Petition Detail page
 
-.meta {
-    float: left;
-    margin: 0;
-    padding-left: 0;
-    padding-top: .25em;
-    text-align: right;
-    width: 15em;
+.petition-details {
+    $sidebar-width: 30%;
+    $sidebar-margin: 5%;
 
-    dt {
-        font-size: .9em;
-        line-height: 1;
-        color: $color-text-lighter;
+    $breakpoint-columns: 1280px;
+
+    @include clearfix;
+
+    @include at-or-below($breakpoint-columns) {
+        max-width: 40em;
     }
 
-    dd {
-        margin-left: 0;
-        margin-bottom: 1em;
-    }
-}
-
-.description {
-    padding-left: 20em;
-
-    p {
-        font-size: 1.1em;
-        max-width: 36em;
+    @include at-or-below($breakpoint-alignment) {
+        margin: 0 auto;
     }
 
-    .button {
-        display: inline-block;
-        margin: .5em 0;
+    .description {
+        float: left;
+        width: (100% - $sidebar-width - $sidebar-margin);
+        line-height: 1.65;
+
+        @include at-or-below($breakpoint-columns) {
+            float: none;
+            width: auto;
+        }
+
+        p {
+            font-size: 1.1em;
+            margin: 0 0 1.85em 0;
+        }
+
+        .button {
+            display: inline-block;
+            margin: .5em 0;
+        }
+    }
+
+    .meta {
+        float: right;
+        width: $sidebar-width;
+        margin: 0;
+        padding-top: .25em;
+        padding-left: 0;
+
+        @include at-or-below($breakpoint-columns) {
+            float: none;
+            width: auto;
+            margin-top: 2em;
+        }
+
+        dt {
+            font-size: .9em;
+            line-height: 1;
+            color: $color-text-lighter;
+        }
+
+        dd {
+            margin-left: 0;
+            margin-bottom: 1em;
+        }
     }
 }
 
@@ -545,8 +877,6 @@ header {
 
 .tabular {
     width: 100%;
-    line-height: 3em;
-    margin: 3em 0;
     border-collapse: collapse;
 
     thead, tbody {
@@ -554,6 +884,7 @@ header {
     }
 
     th {
+        padding: 1.5em 0;
         text-align: inherit;
         font-weight: $font-weight-bold;
 
@@ -562,18 +893,54 @@ header {
         }
     }
 
+    td {
+        padding: .85em 0;
+    }
+
     tbody tr:nth-child(odd) {
         background-color: rgba(black, .035);
     }
 
 }
 
-.countrydata, .constituencydata {
+.country-data, .constituency-data {
+    margin-top: 1em;
 
-    table-layout: fixed;
+    td, th {
+        &:first-child {
+            padding-left: 1em;
+        }
+    }
+}
 
-    td:first-child, th:first-child {
-        padding-left: 1em;
+.country-data {
+    // Hide percentages column at small widths.
+    @include at-or-below(700px) {
+        td, th {
+            &:nth-child(3) {
+                display: none;
+            }
+        }
+    }
+}
+
+.constituency-data {
+    // Hide country/region columns at small widths.
+    @include at-or-below($breakpoint-alignment) {
+        td, th {
+            &:nth-child(2), &:nth-child(3) {
+                display: none;
+            }
+        }
+    }
+
+    // Hide percentages column at small widths.
+    @include at-or-below(700px) {
+        td, th {
+            &:nth-child(5) {
+                display: none;
+            }
+        }
     }
 }
 

@@ -28,7 +28,7 @@
     },
     {
       "uid": "559647a6f430b3aeadbecd67194451dd",
-      "css": "menu",
+      "css": "menu-old",
       "code": 61641,
       "src": "fontawesome"
     },
@@ -60,6 +60,36 @@
       "uid": "c709da589c923ba3c2ad48d9fc563e93",
       "css": "cancel",
       "code": 59400,
+      "src": "entypo"
+    },
+    {
+      "uid": "573lc53801tfc96xt7fubn59tb0o5s4y",
+      "css": "view-details",
+      "code": 59405,
+      "src": "modernpics"
+    },
+    {
+      "uid": "1e89103762be72b0720eda0468e62b90",
+      "css": "view-countries",
+      "code": 59406,
+      "src": "linecons"
+    },
+    {
+      "uid": "7d90b6cb3f3783170a96b09e5f0de6d5",
+      "css": "view-summary",
+      "code": 59409,
+      "src": "entypo"
+    },
+    {
+      "uid": "1ea8ad6dbe1ae9a73565ad16cf88de19",
+      "css": "view-constituencies",
+      "code": 59394,
+      "src": "linecons"
+    },
+    {
+      "uid": "2cfb3f2b46b34a1790aec0aa846297b6",
+      "css": "menu",
+      "code": 59395,
       "src": "entypo"
     }
   ]

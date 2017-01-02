@@ -11,7 +11,7 @@
     // Non-Gecko browsers
     ::selection {
         @content;
-    } 
+    }
 }
 
 // Style input placeholders cross-browser.
@@ -70,7 +70,7 @@
 
 // Two colour pie charts with optional inner ring.
 // See https://www.smashingmagazine.com/2015/07/designing-simple-pie-charts-with-css/
-@mixin pie($pie-color: lightblue, $wedge-color: burlywood, $ring-thickness: 8.5%, $inner-color: whitesmoke) {
+@mixin pie-chart($pie-color: lightblue, $wedge-color: burlywood, $ring-thickness: null, $inner-color: null) {
 
     border-radius: 50%;
     // For absolute positioning of the pseudo elements.
@@ -101,19 +101,31 @@
             left: $ring-thickness;
             right: $ring-thickness;
             border-radius: 50%;
-            background-color: $inner-color;
+            background-color: if($inner-color, $inner-color, whitesmoke);
         }
     }
 
-    @at-root %pie51to100 {
+    @at-root %percent-51-to-100 {
         background-color: $wedge-color;
     }
 
     @for $i from 1 through 50 {
-        @at-root .pie#{$i}::before, .pie#{($i+50)}::before { transform: rotate($i * 3.6deg); }
+        @at-root .percent-#{$i}::before, .percent-#{($i+50)}::before { transform: rotate($i * 3.6deg); }
     }
 
     @for $i from 51 through 100 {
-        @at-root .pie#{$i}::before { @extend %pie51to100; }
+        @at-root .percent-#{$i}::before { @extend %percent-51-to-100; }
+    }
+}
+
+@mixin at-or-below($breakpoint) {
+    @media (max-width: $breakpoint) {
+        @content;
+    }
+}
+
+@mixin at-or-above($breakpoint) {
+    @media (min-width: $breakpoint) {
+        @content;
     }
 }

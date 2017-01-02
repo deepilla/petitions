@@ -37,10 +37,6 @@ Start by cloning the repo and then do one of the following:
 - Warn if localStorage is unavailable
 - Add remove/clear links to petition lists
 
-### Design
-
-- Responsiveness
-
 ### Project
 
 - Tests

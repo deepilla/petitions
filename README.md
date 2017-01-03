@@ -1,8 +1,8 @@
 # Petitions
 
-Petitions is a viewer for UK Government Petitions data.
+Petitions is a viewer for UK Parliament petition data.
 
-The [UK Government Petitions](https://petition.parliament.uk/) website is like change.org for political issues affecting the UK. This app shows petition signatures broken out by country and by parliamentary constituency. Try it out [here](http://petitions.deepilla.com).
+The UK's [Parliamentary Petitions](https://petition.parliament.uk/) website is like change.org for political issues affecting the UK. This app shows petition signatures broken out by country and by parliamentary constituency. Try it out [here](http://petitions.deepilla.com).
 
 ## Install/Build
 

@@ -766,7 +766,7 @@ homeLink : PageType -> Link
 homeLink type_ =
     case type_ of
         NormalPage ->
-            { text = "UK Petitions"
+            { text = "Petitions"
             , action = Start
             , title = Just "Get Started"
             , icon = Just "icon-portcullis"
@@ -1051,7 +1051,7 @@ buildFAQPage =
         questions : List String
         questions =
             [ "What does this site do"
-            , "What is the UK Petitions website"
+            , "What is the Parliamentary Petitions website"
             , "How does this site work"
             , "Why doesn't the total number of signatures for the petition equal the sum of signatures per country"
             , "Why doesn't the number of UK signatures equal the sum of signatures per constituency"

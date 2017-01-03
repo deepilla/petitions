@@ -1,6 +1,6 @@
 {
     "version": "1.0.0",
-    "summary": "A viewer for UK Government Petitions data",
+    "summary": "A viewer for UK Parliament petition data",
     "repository": "https://github.com/deepilla/petitions.git",
     "license": "MIT",
     "source-directories": [

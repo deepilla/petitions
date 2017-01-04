@@ -89,11 +89,12 @@ constituencyDecoder =
         (Json.field "signature_count" Json.int)
         -- Look up constituency info using the ONS code.
         ((Json.field "ons_code" Json.string)
-            |> Json.andThen constituencyInfoDecoder)
+            |> Json.andThen constituencyItemDecoder
+        )
 
 
-constituencyInfoDecoder : String -> Json.Decoder Constituencies.Item
-constituencyInfoDecoder code =
+constituencyItemDecoder : String -> Json.Decoder Constituencies.Item
+constituencyItemDecoder code =
     Constituencies.get code
         |> Maybe.map Json.succeed
         |> Maybe.withDefault (Json.fail ("Unknown constituency " ++ code))
@@ -129,8 +130,8 @@ petitionDecoder =
                   )
         |> andMap (Json.at ["data", "attributes", "creator_name"] (Json.nullable Json.string))
         |> andMap (Json.at ["data", "attributes", "created_at"] dateDecoder)
-        |> andMap (Json.andThen petitionStateDecoder
-                    (Json.at ["data", "attributes", "state"] Json.string)
+        |> andMap ((Json.at ["data", "attributes", "state"] Json.string)
+                    |> Json.andThen petitionStateDecoder
                   )
         |> andMap (Json.at ["data", "attributes", "signature_count"] Json.int)
         |> andMap (Json.at ["data", "attributes", "signatures_by_country"] (Json.list countryDecoder))
@@ -595,8 +596,8 @@ type alias Link =
 
 type alias Page =
     { type_ : PageType
-    , class : Maybe String
     , title : String
+    , class : Maybe String
     , content : List (Html Msg)
     , navitems : List Link
     , menuitems : List Link
@@ -606,8 +607,8 @@ type alias Page =
 blankPage : Page
 blankPage =
     { type_ = NormalPage
-    , class = Nothing
     , title = ""
+    , class = Nothing
     , content = []
     , navitems = []
     , menuitems = []
@@ -891,13 +892,13 @@ buildPetitionPage model petition =
         content =
             case model.view of
                 Summary ->
-                    renderPetitionSummary petition model.options
+                    renderPetitionSummary model.options petition
                 Detail ->
                     renderPetitionDetail petition
                 CountryData ->
-                    renderPetitionCountries petition model.options
+                    renderPetitionCountries model.options petition
                 ConstituencyData ->
-                    renderPetitionConstituencies petition model.options
+                    renderPetitionConstituencies model.options petition
     in
     { blankPage
         | title = petition.title
@@ -1015,8 +1016,8 @@ buildErrorPage err =
 buildMyPetitionsPage : PetitionList -> PetitionList -> Page
 buildMyPetitionsPage saved recent =
     let
-        msg : String -> Msg
-        msg url =
+        onClickPetition : String -> Msg
+        onClickPetition url =
             BatchUpdate
                 [ SetModal NoModal
                 , LoadPetition False url
@@ -1025,7 +1026,8 @@ buildMyPetitionsPage saved recent =
         renderPetitions : String -> PetitionList -> Html Msg
         renderPetitions defaultText petitions =
             petitions
-                |> renderPetitionListWith msg
+                |> listToMaybe
+                |> Maybe.map (renderPetitionList onClickPetition)
                 |> Maybe.withDefault (Html.p [] [ Html.text defaultText ])
 
         content : List (Html Msg)
@@ -1081,22 +1083,6 @@ renderFooter =
                 , Attributes.target "_blank"
                 ]
                 [ Html.text "A deepilla jawn" ]
-{--
-            , Html.text ". Made with "
-            , Html.a
-                [ Attributes.href "http://elm-lang.org"
-                , Attributes.target "_blank"
-                , Attributes.title "A delightful language for reliable webapps"
-                ]
-                [ Html.text "Elm" ]
-            , Html.text " and "
-            , Html.a
-                [ Attributes.href "http://sass-lang.com"
-                , Attributes.target "_blank"
-                , Attributes.title "CSS with superpowers"
-                ]
-                [ Html.text "Sass" ]
---}
             , Html.text ". Contains public sector information licensed under the "
             , Html.a
                 [ Attributes.href "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/"
@@ -1108,8 +1094,8 @@ renderFooter =
         ]
 
 
-renderPetitionSummary : Petition -> ReportOptions -> List (Html Msg)
-renderPetitionSummary petition opts =
+renderPetitionSummary : ReportOptions -> Petition -> List (Html Msg)
+renderPetitionSummary opts petition =
     [ renderPercentages petition.signatures petition.countries
     , renderTopCountries 10 opts.topCountryFilter petition.countries
     , renderRegions opts.constituencyGrouping petition.constituencies
@@ -1178,8 +1164,8 @@ renderPetitionDetail petition =
     ]
 
 
-renderPetitionCountries : Petition -> ReportOptions -> List (Html Msg)
-renderPetitionCountries petition opts =
+renderPetitionCountries : ReportOptions -> Petition -> List (Html Msg)
+renderPetitionCountries opts petition =
     let
         items : List Country
         items =
@@ -1192,6 +1178,10 @@ renderPetitionCountries petition opts =
         total : Int
         total =
             totalSignatures items
+
+        petitionTotal : Int
+        petitionTotal =
+            petition.signatures
 
         iconClass : SortBy -> String
         iconClass by =
@@ -1215,13 +1205,13 @@ renderPetitionCountries petition opts =
                 }
             ,   { text = "Signatures"
                 , title = Just "Sort by Signatures"
-                , align = Just AlignCenter
+                , align = Just Center
                 , action = Just (SortCountryData SortBySignatures)
                 , icon = Just (iconClass SortBySignatures)
                 }
             ,   { text = "Signatures (%)"
                 , title = Nothing
-                , align = Just AlignCenter
+                , align = Just Center
                 , action = Nothing
                 , icon = Nothing
                 }
@@ -1236,11 +1226,11 @@ renderPetitionCountries petition opts =
                 }
             ,   { value = .signatures >> thousands
                 , title = Nothing
-                , align = Just AlignCenter
+                , align = Just Center
                 }
             ,   { value = .signatures >> formatPercentage (dps 1) total
                 , title = Just (.signatures >> formatPercentage (dps 4) total)
-                , align = Just AlignCenter
+                , align = Just Center
                 }
             ]
 
@@ -1253,7 +1243,7 @@ renderPetitionCountries petition opts =
                 }
             ,   { value = always (thousands amount)
                 , title = Nothing
-                , align = Just AlignCenter
+                , align = Just Center
                 }
             ,   { value = always ""
                 , title = Nothing
@@ -1263,10 +1253,10 @@ renderPetitionCountries petition opts =
 
         totals : List (List (Cell (List Country)))
         totals =
-            if total /= petition.signatures then
+            if total /= petitionTotal then
                 [ totalRow "Total" total
-                , totalRow "Official Total" petition.signatures
-                , totalRow "Difference" (petition.signatures - total)
+                , totalRow "Official Total" petitionTotal
+                , totalRow "Difference" (petitionTotal - total)
                 ]
             else
                 [ totalRow "Total" total ]
@@ -1289,8 +1279,8 @@ renderPetitionCountries petition opts =
     ]
 
 
-renderPetitionConstituencies : Petition -> ReportOptions -> List (Html Msg)
-renderPetitionConstituencies petition opts =
+renderPetitionConstituencies : ReportOptions -> Petition -> List (Html Msg)
+renderPetitionConstituencies opts petition =
     let
         items : List Constituency
         items =
@@ -1351,13 +1341,13 @@ renderPetitionConstituencies petition opts =
                 }
             ,   { text = "Signatures"
                 , title = Just "Sort by Signatures"
-                , align = Just AlignCenter
+                , align = Just Center
                 , action = Just (SortConstituencyData SortBySignatures)
                 , icon = Just (iconClass SortBySignatures)
                 }
             ,   { text = "Signatures (%)"
                 , title = Nothing
-                , align = Just AlignCenter
+                , align = Just Center
                 , action = Nothing
                 , icon = Nothing
                 }
@@ -1380,11 +1370,11 @@ renderPetitionConstituencies petition opts =
                 }
             ,   { value = .signatures >> thousands
                 , title = Nothing
-                , align = Just AlignCenter
+                , align = Just Center
                 }
             ,   { value = .signatures >> formatPercentage (dps 1) total
                 , title = Just (.signatures >> formatPercentage (dps 4) total)
-                , align = Just AlignCenter
+                , align = Just Center
                 }
             ]
 
@@ -1405,7 +1395,7 @@ renderPetitionConstituencies petition opts =
                 }
             ,   { value = always (thousands amount)
                 , title = Nothing
-                , align = Just AlignCenter
+                , align = Just Center
                 }
             ,   { value = always ""
                 , title = Nothing
@@ -1452,7 +1442,6 @@ renderPercentages officialTotal countries =
         count =
             List.length countries
 
-        -- NOTE: Type annotations don't work with tuples.
         -- (ukCountries, nonUkCountries) : (List Country, List Country)
         (ukCountries, nonUkCountries) =
             List.partition .isUK countries
@@ -1466,9 +1455,9 @@ renderPercentages officialTotal countries =
 
                 displayPercent : Int
                 displayPercent =
-                    if percent > 95.0 then
+                    if percent > 90.0 then
                         floor percent
-                    else if percent < 5.0 then
+                    else if percent < 10.0 then
                         ceiling percent
                     else
                         round percent
@@ -1477,10 +1466,12 @@ renderPercentages officialTotal countries =
                 [ Attributes.class (class ++ " percent-" ++ toString displayPercent) ]
                 -- e.g. "96.5% UK (12,360 signatures)"
                 [ Html.span
-                    [ Attributes.class "inner" ]
+                    [ Attributes.class "inner"
+                    , Attributes.title (dps 4 percent ++ "%")
+                    ]
                     [ Html.span
                         [ Attributes.class "percentage" ]
-                        [ Html.text ((dps 1 percent) ++ "%") ]
+                        [ Html.text (dps 1 percent ++ "%") ]
                     , Html.text " "
                     , Html.span
                         [ Attributes.class "label" ]
@@ -1631,7 +1622,6 @@ renderRegions groupBy constituencies =
             in
             Dict.update (key constituency) (updateValue constituency.signatures)
 
-        -- NOTE: Type annotations don't work with tuples.
         -- (barLabels, barValues) : (List String, List Int)
         (barLabels, barValues) =
             constituencies
@@ -1677,29 +1667,6 @@ renderRegions groupBy constituencies =
             ]
         , renderBarChart barLabels barValues
         ]
-
-
-renderPetitionListWith : (String -> Msg) -> PetitionList -> Maybe (Html Msg)
-renderPetitionListWith onClick items =
-    let
-        linkToPetition : PetitionList.Item -> Html Msg
-        linkToPetition item =
-            Html.a
-                [ Events.onClick (onClick item.url)
-                , Attributes.href "javascript:;"
-                ]
-                [ Html.text item.title ]
-    in
-    items
-        |> List.map linkToPetition
-        |> List.map (\a -> Html.li [] [ a ])
-        |> listToMaybe
-        |> Maybe.map (Html.ol [ Attributes.class "petition-list" ])
-
-
-renderPetitionList : PetitionList -> Maybe (Html Msg)
-renderPetitionList =
-    renderPetitionListWith (LoadPetition False)
 
 
 renderBarChart : List String -> List Int -> Html Msg
@@ -1767,10 +1734,27 @@ renderRadioGroup name labels msgs checks =
     (List.map3 input labels msgs checks)
 
 
+renderPetitionList : (String -> Msg) -> PetitionList -> Html Msg
+renderPetitionList onClick items =
+    let
+        linkToPetition : PetitionList.Item -> Html Msg
+        linkToPetition item =
+            Html.a
+                [ Events.onClick (onClick item.url)
+                , Attributes.href "javascript:;"
+                ]
+                [ Html.text item.title ]
+    in
+    items
+        |> List.map linkToPetition
+        |> List.map (\a -> Html.li [] [ a ])
+        |> Html.ol [ Attributes.class "petition-list" ]
+
+
 type Align
-    = AlignLeft
-    | AlignRight
-    | AlignCenter
+    = Left
+    | Right
+    | Center
 
 
 type alias Cell a =
@@ -1795,11 +1779,11 @@ alignAttribute align =
         value : String
         value =
             case align of
-                AlignLeft ->
+                Left ->
                     "left"
-                AlignRight ->
+                Right ->
                     "right"
-                AlignCenter ->
+                Center ->
                     "center"
     in
     Attributes.style [("text-align", value)]
@@ -2024,13 +2008,12 @@ init config =
         model =
             { initialModel
                 | logging = config.logging
-                , state = if fetchCmd /= Cmd.none then Loading else Initial
+                , state = if config.id /= Nothing then Loading else Initial
             }
 
         cmd : Cmd Msg
         cmd =
-            localStorageKeys
-                |> List.map getLocalStorage
+            List.map getLocalStorage localStorageKeys
                 |> (::) fetchCmd
                 |> Cmd.batch
     in
@@ -2326,37 +2309,6 @@ withoutSuffix suffix string =
 -- Petition Helpers
 
 
-sortCountries : SortOptions -> List Country -> List Country
-sortCountries opts =
-    case opts.by of
-        SortByCountry ->
-            sort opts.order .name
-        SortBySignatures ->
-            sort opts.order .signatures
-        SortByConstituency ->
-            identity
-
-
-sortConstituencies : SortOptions -> List Constituency -> List Constituency
-sortConstituencies opts =
-    let
-        country : Constituency -> String
-        country constituency =
-            -- Sort constituencies in the same country
-            -- by constituency name.
-            getConstituencyCountry constituency
-                ++ "__"
-                ++ constituency.name
-    in
-    case opts.by of
-        SortByConstituency ->
-            sort opts.order .name
-        SortByCountry ->
-            sort opts.order country
-        SortBySignatures ->
-            sort opts.order .signatures
-
-
 countryToString : Constituencies.Country -> String
 countryToString country =
     case country of
@@ -2403,6 +2355,37 @@ getConstituencyRegion : Constituency -> Maybe String
 getConstituencyRegion constituency =
     constituency.info.region
         |> Maybe.map regionToString
+
+
+sortCountries : SortOptions -> List Country -> List Country
+sortCountries opts =
+    case opts.by of
+        SortByCountry ->
+            sort opts.order .name
+        SortBySignatures ->
+            sort opts.order .signatures
+        SortByConstituency ->
+            identity
+
+
+sortConstituencies : SortOptions -> List Constituency -> List Constituency
+sortConstituencies opts =
+    let
+        country : Constituency -> String
+        country constituency =
+            -- Sort constituencies in the same country
+            -- by constituency name.
+            getConstituencyCountry constituency
+                ++ "__"
+                ++ constituency.name
+    in
+    case opts.by of
+        SortByConstituency ->
+            sort opts.order .name
+        SortByCountry ->
+            sort opts.order country
+        SortBySignatures ->
+            sort opts.order .signatures
 
 
 pluraliseCountries : Int -> String

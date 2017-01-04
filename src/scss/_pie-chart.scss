@@ -1,73 +1,4 @@
 
-// Selected text.
-// See https://developer.mozilla.org/en-US/docs/Web/CSS/::selection
-@mixin selection {
-
-    // Gecko browsers
-    ::-moz-selection {
-        @content;
-    }
-
-    // Non-Gecko browsers
-    ::selection {
-        @content;
-    }
-}
-
-// Style input placeholders cross-browser.
-// See https://css-tricks.com/almanac/selectors/p/placeholder/
-@mixin input-placeholder {
-
-    // Chrome/Opera/Safari
-    &::-webkit-input-placeholder {
-        @content;
-    }
-
-    // Firefox 18-
-    &:-moz-placeholder {
-        @content;
-    }
-
-     // Firefox 19+
-    &::-moz-placeholder {
-        @content;
-    }
-
-    // IE 10+
-    &:-ms-input-placeholder {
-        @content;
-    }
-}
-
-// Clearfix.
-// See https://css-tricks.com/snippets/css/clear-fix/
-@mixin clearfix {
-    &:after {
-        content: "";
-        display: table;
-        clear: both;
-    }
-}
-
-// Sticky footers.
-// See https://css-tricks.com/snippets/css/sticky-footer/
-@mixin sticky-footer($selector, $height) {
-    html, body {
-        height: 100%;
-    }
-
-    #{$selector} {
-        min-height: 100%;
-        margin-bottom: 0 - $height;
-
-        &:after {
-            content: "";
-            display: block;
-            height: $height;
-        }
-    }
-}
-
 // Two colour pie charts with optional inner ring.
 // See https://www.smashingmagazine.com/2015/07/designing-simple-pie-charts-with-css/
 @mixin pie-chart($pie-color: lightblue, $wedge-color: burlywood, $ring-thickness: null, $inner-color: null) {
@@ -115,17 +46,5 @@
 
     @for $i from 51 through 100 {
         @at-root .percent-#{$i}::before { @extend %percent-51-to-100; }
-    }
-}
-
-@mixin at-or-below($breakpoint) {
-    @media (max-width: $breakpoint) {
-        @content;
-    }
-}
-
-@mixin at-or-above($breakpoint) {
-    @media (min-width: $breakpoint) {
-        @content;
     }
 }

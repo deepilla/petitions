@@ -30,11 +30,14 @@ Start by cloning the repo and then do one of the following:
 ### Functionality
 
 - Search for petitions
+- Indicate closed/rejected status in the petition title
+- Indicate totals mismatch on the summary page
+- Indicate government response/parliament discussion on the details page
 - Browser history/titles (via History API and document.title)
 - Transitions between screens
 - Show a "Try again" link when a petition fails to load
 - Handle edge cases sensibly (e.g. no signatures, one signature, all signatures in one country)
-- Warn if localStorage is unavailable
+- Warn user if localStorage is unavailable
 - Add remove/clear links to petition lists
 
 ### Project

@@ -2110,6 +2110,7 @@ listToMaybe list =
 
 -- Number Helpers
 
+
 dps : Int -> Float -> String
 dps dps value =
     let
@@ -2117,42 +2118,52 @@ dps dps value =
         dps_ =
             max 0 dps
 
-        rounding : Float
-        rounding =
-            0.5 / (toFloat (10 ^ dps_))
-
-        value_ : Float
-        value_ =
-            if value < 0 then (value - rounding) else (value + rounding)
-
-        parts : List String
-        parts =
-            String.split "." (toString value_)
-
-        integer : Maybe String
-        integer =
-            List.head parts
-
-        fractional : Maybe String
-        fractional =
-            List.head (List.drop 1 parts)
+        min : Float
+        min =
+            1.0 / (toFloat (10 ^ dps_))
     in
-    case integer of
-        Just int ->
-            let
-                frac : String
-                frac =
-                    case fractional of
-                        Just str ->
-                            str
-                                |> String.left dps_
-                                |> String.padRight dps_ '0'
-                        Nothing ->
-                            String.repeat dps_ "0"
-            in
-            int ++ "." ++ frac
-        Nothing ->
-            "#NaN"
+    if value > 0 && value < min then
+        "< " ++ toString min
+    else if value < 0 && value > (negate min) then
+        "> " ++ toString (negate min)
+    else
+        let
+            rounding : Float
+            rounding =
+                0.5 / (toFloat (10 ^ dps_))
+
+            value_ : Float
+            value_ =
+                if value < 0 then (value - rounding) else (value + rounding)
+
+            parts : List String
+            parts =
+                String.split "." (toString value_)
+
+            integer : Maybe String
+            integer =
+                List.head parts
+
+            fractional : Maybe String
+            fractional =
+                List.head (List.drop 1 parts)
+        in
+        case integer of
+            Just int ->
+                let
+                    frac : String
+                    frac =
+                        case fractional of
+                            Just str ->
+                                str
+                                    |> String.left dps_
+                                    |> String.padRight dps_ '0'
+                            Nothing ->
+                                String.repeat dps_ "0"
+                in
+                int ++ "." ++ frac
+            Nothing ->
+                "#NaN"
 
 
 thousands : Int -> String

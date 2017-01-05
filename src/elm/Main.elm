@@ -11,8 +11,6 @@ import Html.Events as Events
 import Http
 import Json.Decode as Json
 import Random
-import String
-import Tuple
 
 import Constituencies
 import Country

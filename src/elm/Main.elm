@@ -93,9 +93,11 @@ constituencyDecoder =
 
 constituencyItemDecoder : String -> Json.Decoder Constituencies.Item
 constituencyItemDecoder code =
-    Constituencies.get code
-        |> Maybe.map Json.succeed
-        |> Maybe.withDefault (Json.fail ("Unknown constituency " ++ code))
+    case Constituencies.get code of
+        Just item ->
+            Json.succeed item
+        Nothing ->
+            Json.fail ("Unknown constituency " ++ code)
 
 
 type alias Petition =
@@ -1251,13 +1253,14 @@ renderPetitionCountries opts petition =
 
         totals : List (List (Cell (List Country)))
         totals =
-            if total /= petitionTotal then
-                [ totalRow "Total" total
-                , totalRow "Official Total" petitionTotal
-                , totalRow "Difference" (petitionTotal - total)
-                ]
-            else
-                [ totalRow "Total" total ]
+            case petitionTotal - total of
+                0 ->
+                    [ totalRow "Total" total ]
+                diff ->
+                    [ totalRow "Total" total
+                    , totalRow "Official Total" petitionTotal
+                    , totalRow "Difference" diff
+                    ]
     in
     [ Html.h3
         [ Attributes.class "subbed" ]
@@ -1403,13 +1406,14 @@ renderPetitionConstituencies opts petition =
 
         totals : List (List (Cell (List Constituency)))
         totals =
-            if total /= ukTotal then
-                [ totalRow "Total" total
-                , totalRow "UK Signatures" ukTotal
-                , totalRow "Difference" (ukTotal - total)
-                ]
-            else
-                [ totalRow "Total" total ]
+            case ukTotal - total of
+                0 ->
+                    [ totalRow "Total" total ]
+                diff ->
+                    [ totalRow "Total" total
+                    , totalRow "UK Signatures" ukTotal
+                    , totalRow "Difference" diff
+                    ]
     in
     [ Html.h3
         [ Attributes.class "subbed" ]
@@ -1538,8 +1542,8 @@ renderTopCountries limit countryFilter countries =
                 NonEU ->
                     not << .isEU
 
-        data : List Country
-        data =
+        items : List Country
+        items =
             -- NOTE: The order of countries with the same
             -- number of signatures is not guaranteed and
             -- may change from render to render.
@@ -1550,11 +1554,11 @@ renderTopCountries limit countryFilter countries =
 
         barLabels : List String
         barLabels =
-            List.map .name data
+            List.map .name items
 
         barValues : List Int
         barValues =
-            List.map .signatures data
+            List.map .signatures items
 
         radioLabels : List String
         radioLabels =
@@ -1602,28 +1606,28 @@ renderTopCountries limit countryFilter countries =
 renderRegions : GroupBy -> List Constituency -> Html Msg
 renderRegions groupBy constituencies =
     let
-        getKey : Constituency -> String
-        getKey constituency =
+        key : (Constituency -> String)
+        key  =
             case groupBy of
                 GroupByCountry ->
-                    getConstituencyCountry constituency
+                    getConstituencyCountry
                 GroupByRegion ->
-                    getConstituencyRegion constituency
-                        |> Maybe.withDefault (getConstituencyCountry constituency)
+                    \x -> getConstituencyRegion x
+                            |> Maybe.withDefault (getConstituencyCountry x)
 
         updateDict : (Constituency -> String) -> Constituency -> Dict String Int -> Dict String Int
-        updateDict key constituency =
+        updateDict getKey constituency =
             let
-                updateValue : Int -> Maybe Int -> Maybe Int
-                updateValue value total =
+                updateTotal : Int -> Maybe Int -> Maybe Int
+                updateTotal value total =
                     Just ((Maybe.withDefault 0 total) + value)
             in
-            Dict.update (key constituency) (updateValue constituency.signatures)
+            Dict.update (getKey constituency) (updateTotal constituency.signatures)
 
         -- (barLabels, barValues) : (List String, List Int)
         (barLabels, barValues) =
             constituencies
-                |> List.foldl (updateDict getKey) Dict.empty
+                |> List.foldl (updateDict key) Dict.empty
                 |> Dict.toList
                 |> sort Desc Tuple.second
                 |> List.unzip
@@ -2006,7 +2010,7 @@ init config =
         model =
             { initialModel
                 | logging = config.logging
-                , state = if config.id /= Nothing then Loading else Initial
+                , state = if fetchCmd /= Cmd.none then Loading else Initial
             }
 
         cmd : Cmd Msg
@@ -2083,10 +2087,11 @@ filterMaybes =
 
 listToMaybe : List a -> Maybe (List a)
 listToMaybe list =
-    if List.isEmpty list then
-        Nothing
-    else
-        Just list
+    case list of
+        [] ->
+            Nothing
+        list ->
+            Just list
 
 
 -- Number Helpers
@@ -2154,18 +2159,18 @@ thousands number =
         chunk len string =
             let
                 splitr : Int -> String -> List String -> List String
-                splitr len string list =
-                    let
-                        head : String
-                        head = String.dropRight len string
-
-                        tail : String
-                        tail = String.right len string
-                    in
-                    if tail == "" then
-                        list
+                splitr len string parts =
+                    if string == "" then
+                        parts
                     else
-                        splitr len head (tail :: list)
+                        let
+                            next : String
+                            next = String.right len string
+
+                            rest : String
+                            rest = String.dropRight len string
+                        in
+                        splitr len rest (next :: parts)
             in
             splitr len string []
     in

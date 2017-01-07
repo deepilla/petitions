@@ -1518,7 +1518,7 @@ renderPercentages officialTotal countries =
                 , Html.text (" " ++ pluraliseSignatures total ++ " in ")
                 , Html.span
                     [ Attributes.class "highlight" ]
-                    [ Html.text (toString count) ]
+                    [ Html.text (thousands count) ]
                 , Html.text (" " ++ pluraliseCountries count)
                 ]
             ]

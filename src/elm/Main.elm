@@ -1228,8 +1228,8 @@ renderPetitionCountries opts petition =
                 , title = Nothing
                 , align = Just Center
                 }
-            ,   { value = .signatures >> formatPercentage (dps 1) total
-                , title = Just (.signatures >> formatPercentage (dps 4) total)
+            ,   { value = .signatures >> shortPercentage total
+                , title = Just (.signatures >> longPercentage total)
                 , align = Just Center
                 }
             ]
@@ -1373,8 +1373,8 @@ renderPetitionConstituencies opts petition =
                 , title = Nothing
                 , align = Just Center
                 }
-            ,   { value = .signatures >> formatPercentage (dps 1) total
-                , title = Just (.signatures >> formatPercentage (dps 4) total)
+            ,   { value = .signatures >> shortPercentage total
+                , title = Just (.signatures >> longPercentage total)
                 , align = Just Center
                 }
             ]
@@ -1453,13 +1453,13 @@ renderPercentages officialTotal countries =
             let
                 percent : Float
                 percent =
-                    percentageOf total signatures
+                    Result.withDefault 0 (percentageOf total signatures)
 
                 displayPercent : Int
                 displayPercent =
-                    if percent > 90.0 then
+                    if percent > 90 then
                         floor percent
-                    else if percent < 10.0 then
+                    else if percent < 10 then
                         ceiling percent
                     else
                         round percent
@@ -1615,19 +1615,10 @@ renderRegions groupBy constituencies =
                     \x -> getConstituencyRegion x
                             |> Maybe.withDefault (getConstituencyCountry x)
 
-        updateDict : (Constituency -> String) -> Constituency -> Dict String Int -> Dict String Int
-        updateDict getKey constituency =
-            let
-                updateTotal : Int -> Maybe Int -> Maybe Int
-                updateTotal value total =
-                    Just ((Maybe.withDefault 0 total) + value)
-            in
-            Dict.update (getKey constituency) (updateTotal constituency.signatures)
-
         -- (barLabels, barValues) : (List String, List Int)
         (barLabels, barValues) =
             constituencies
-                |> List.foldl (updateDict key) Dict.empty
+                |> groupSignaturesBy key
                 |> Dict.toList
                 |> sort Desc Tuple.second
                 |> List.unzip
@@ -1683,7 +1674,7 @@ renderBarChart labels values =
             let
                 percent : Float
                 percent =
-                    percentageOf max value
+                    Result.withDefault 0 (percentageOf max value)
 
                 width: String
                 width =
@@ -1954,6 +1945,23 @@ defaultLinks =
     ]
 
 
+shortPercentage : Int -> Int -> String
+shortPercentage total value =
+    formatPercentage 1 total value
+        |> Result.withDefault "%ERR"
+
+
+longPercentage : Int -> Int -> String
+longPercentage total value =
+    formatPercentage 4 total value
+        |> Result.withDefault "%ERR"
+
+
+formatPercentage : Int -> Int -> Int -> Result String String
+formatPercentage decimals total value =
+    asPercentage decimals (toFloat value / toFloat total)
+
+
 -- SUBSCRIPTIONS
 
 
@@ -2049,19 +2057,8 @@ sort order property =
 
 dateDecoder : Json.Decoder Date
 dateDecoder =
-    let
-        -- TODO: Replace this function if/when Elm 0.18
-        -- gets a replacement for Json.Decode.customDecoder.
-        -- See https://groups.google.com/forum/#!topic/elm-dev/Ctl_kSKJuYc
-        stringToDateDecoder : String -> Json.Decoder Date
-        stringToDateDecoder string =
-            case (Date.fromString string) of
-                Ok date ->
-                    Json.succeed date
-                Err err ->
-                    Json.fail err
-    in
-    Json.andThen stringToDateDecoder Json.string
+    Json.string
+        |> Json.andThen (Date.fromString >> decoderFromResult)
 
 
 linesDecoder : Json.Decoder (List String)
@@ -2075,6 +2072,18 @@ linesDecoder =
                 |> List.filter (not << String.isEmpty)
     in
     Json.map lines Json.string
+
+
+-- TODO: Replace this function if/when Elm 0.18 gets a
+-- replacement for Json.Decode.customDecoder.
+-- See https://groups.google.com/forum/#!topic/elm-dev/Ctl_kSKJuYc
+decoderFromResult : Result x a -> Json.Decoder a
+decoderFromResult result =
+    case result of
+        Ok value ->
+            Json.succeed value
+        Err err ->
+            Json.fail (toString err)
 
 
 -- Maybe Helpers
@@ -2108,75 +2117,75 @@ dps dps value =
         min =
             1.0 / (toFloat (10 ^ dps_))
     in
-    if value > 0 && value < min then
-        "< " ++ toString min
-    else if value < 0 && value > (negate min) then
-        "> " ++ toString (negate min)
+    if abs value < min then
+        if value < 0 then
+            "> " ++ toString (negate min)
+        else
+            "< " ++ toString min
+    else
+        formatFloat dps_ value
+
+
+formatFloat : Int -> Float -> String
+formatFloat dps value =
+    if isNaN value then
+        "NaN"
+    else if isInfinite value then
+        "Infinity"
     else
         let
+            dps_ : Int
+            dps_ =
+                max 0 dps
+
             rounding : Float
             rounding =
                 0.5 / (toFloat (10 ^ dps_))
 
             value_ : Float
             value_ =
-                if value < 0 then (value - rounding) else (value + rounding)
+                if value < 0 then
+                    value - rounding
+                else
+                    value + rounding
 
+            -- TODO: Handle E notation, used by toString for very
+            -- small/large floats, e.g. toString 0.0000001 is "1e-7".
             parts : List String
             parts =
                 String.split "." (toString value_)
 
-            integer : Maybe String
+            integer : String
             integer =
                 List.head parts
+                    |> Maybe.withDefault "0"
 
-            fractional : Maybe String
+            fractional : String
             fractional =
-                List.head (List.drop 1 parts)
+                List.tail parts
+                    |> Maybe.andThen List.head
+                    |> Maybe.withDefault ""
         in
-        case integer of
-            Just int ->
-                let
-                    frac : String
-                    frac =
-                        case fractional of
-                            Just str ->
-                                str
-                                    |> String.left dps_
-                                    |> String.padRight dps_ '0'
-                            Nothing ->
-                                String.repeat dps_ "0"
-                in
-                int ++ "." ++ frac
-            Nothing ->
-                "#NaN"
+        if dps > 0 then
+            fractional
+                |> String.left dps_
+                |> String.padRight dps_ '0'
+                |> String.cons '.'
+                |> String.append integer
+        else
+            integer
 
 
 thousands : Int -> String
 thousands number =
     let
-        chunk : Int -> String -> List String
-        chunk len string =
-            let
-                splitr : Int -> String -> List String -> List String
-                splitr len string parts =
-                    if string == "" then
-                        parts
-                    else
-                        let
-                            next : String
-                            next = String.right len string
-
-                            rest : String
-                            rest = String.dropRight len string
-                        in
-                        splitr len rest (next :: parts)
-            in
-            splitr len string []
+        toChunks : Int -> String -> List String
+        toChunks len string =
+            chunkr len string []
     in
     abs number
         |> toString
-        |> chunk 3
+        |> toChunks 3
         |> String.join ","
         |> (if number < 0 then String.cons '-' else identity)
 
@@ -2203,17 +2212,25 @@ toOrdinal num =
             else
                 "th"
     in
-    (toString num) ++ suffix
+    toString num ++ suffix
 
 
-percentageOf : Int -> Int -> Float
+percentageOf : Int -> Int -> Result String Float
 percentageOf total value =
-    100 * ((toFloat value) / (toFloat total))
+    if total == 0 then
+        Err "Division by 0"
+    else
+        Ok (100 * (toFloat value / toFloat total))
 
 
-formatPercentage : (Float -> String) -> Int -> Int -> String
-formatPercentage format total value =
-    format (percentageOf total value) ++ "%"
+asPercentage : Int -> Float -> Result String String
+asPercentage decimals value =
+    if isNaN value then
+        Err "NaN"
+    else if isInfinite value then
+        Err "Infinity"
+    else
+        Ok (dps decimals (100 * value) ++ "%")
 
 
 -- Date Helpers
@@ -2307,6 +2324,26 @@ withoutSuffix suffix string =
         String.dropRight (String.length suffix) string
     else
         string
+
+
+chunk : (String -> String) -> (String -> String) -> String -> List String -> List String
+chunk head tail string chunks =
+    if string == "" then
+        chunks
+    else
+        let
+            next : String
+            next = head string
+
+            rest : String
+            rest = tail string
+        in
+        chunk head tail rest (next :: chunks)
+
+
+chunkr : Int -> String -> List String -> List String
+chunkr len =
+    chunk (String.right len) (String.dropRight len)
 
 
 -- Petition Helpers
@@ -2406,19 +2443,23 @@ pluraliseSignatures =
     pluralise "signature" "signatures"
 
 
-withJsonExtension : String -> String
-withJsonExtension =
-    withSuffix ".json"
-
-
-withoutJsonExtension : String -> String
-withoutJsonExtension =
-    withoutSuffix ".json"
-
-
 totalSignatures : List { a | signatures : Int } -> Int
-totalSignatures list  =
-    List.foldl (\a total -> total + a.signatures) 0 list
+totalSignatures items  =
+    List.foldl (\item total -> total + item.signatures) 0 items
+
+
+groupSignaturesBy : ({ a | signatures : Int } -> comparable) -> List { a | signatures : Int } -> Dict comparable Int
+groupSignaturesBy key items =
+    let
+        updateValue : Int -> Maybe Int -> Maybe Int
+        updateValue new current =
+            Just (Maybe.withDefault 0 current + new)
+
+        updateDict : { a | signatures : Int } -> Dict comparable Int -> Dict comparable Int
+        updateDict item =
+            Dict.update (key item) (updateValue item.signatures)
+    in
+    List.foldl updateDict Dict.empty items
 
 
 -- URL Helpers
@@ -2442,6 +2483,16 @@ urlWithId id =
 urlWithParams : List (String, String) -> String
 urlWithParams params =
     url (baseUrl ++ "/petitions.json") params
+
+
+withJsonExtension : String -> String
+withJsonExtension =
+    withSuffix ".json"
+
+
+withoutJsonExtension : String -> String
+withoutJsonExtension =
+    withoutSuffix ".json"
 
 
 -- TODO: Replace these functions with Http.url

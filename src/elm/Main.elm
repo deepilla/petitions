@@ -14,6 +14,7 @@ import Random
 
 import Constituencies
 import Country
+import Float
 import PetitionList exposing (PetitionList)
 
 
@@ -1228,8 +1229,8 @@ renderPetitionCountries opts petition =
                 , title = Nothing
                 , align = Just Center
                 }
-            ,   { value = .signatures >> shortPercentage total
-                , title = Just (.signatures >> longPercentage total)
+            ,   { value = .signatures >> formatPercentageOf 1 total
+                , title = Just (.signatures >> formatPercentageOf 4 total)
                 , align = Just Center
                 }
             ]
@@ -1373,8 +1374,8 @@ renderPetitionConstituencies opts petition =
                 , title = Nothing
                 , align = Just Center
                 }
-            ,   { value = .signatures >> shortPercentage total
-                , title = Just (.signatures >> longPercentage total)
+            ,   { value = .signatures >> formatPercentageOf 1 total
+                , title = Just (.signatures >> formatPercentageOf 4 total)
                 , align = Just Center
                 }
             ]
@@ -1457,9 +1458,9 @@ renderPercentages officialTotal countries =
 
                 displayPercent : Int
                 displayPercent =
-                    if percent > 90 then
+                    if percent > 90.0 then
                         floor percent
-                    else if percent < 10 then
+                    else if percent < 10.0 then
                         ceiling percent
                     else
                         round percent
@@ -1469,11 +1470,11 @@ renderPercentages officialTotal countries =
                 -- e.g. "96.5% UK (12,360 signatures)"
                 [ Html.span
                     [ Attributes.class "inner"
-                    , Attributes.title (dps 4 percent ++ "%")
+                    , Attributes.title (formatPercentage 4 percent)
                     ]
                     [ Html.span
                         [ Attributes.class "percentage" ]
-                        [ Html.text (dps 1 percent ++ "%") ]
+                        [ Html.text (formatPercentage 1 percent) ]
                     , Html.text " "
                     , Html.span
                         [ Attributes.class "label" ]
@@ -1678,11 +1679,11 @@ renderBarChart labels values =
 
                 width: String
                 width =
-                    (toString percent) ++ "%"
+                    toString percent ++ "%"
 
                 indent: String
                 indent =
-                    (toString (percent + 1.0)) ++ "%"
+                    toString (percent + 1.0) ++ "%"
             in
             Html.tr
                 [ Attributes.title (label ++ ": " ++ thousands value ++ " " ++ pluraliseSignatures value) ]
@@ -1945,23 +1946,6 @@ defaultLinks =
     ]
 
 
-shortPercentage : Int -> Int -> String
-shortPercentage total value =
-    formatPercentage 1 total value
-        |> Result.withDefault "%ERR"
-
-
-longPercentage : Int -> Int -> String
-longPercentage total value =
-    formatPercentage 4 total value
-        |> Result.withDefault "%ERR"
-
-
-formatPercentage : Int -> Int -> Int -> Result String String
-formatPercentage decimals total value =
-    asPercentage decimals (toFloat value / toFloat total)
-
-
 -- SUBSCRIPTIONS
 
 
@@ -2106,74 +2090,23 @@ listToMaybe list =
 -- Number Helpers
 
 
-dps : Int -> Float -> String
-dps dps value =
-    let
-        dps_ : Int
-        dps_ =
-            max 0 dps
-
-        min : Float
-        min =
-            1.0 / (toFloat (10 ^ dps_))
-    in
-    if abs value < min then
-        if value < 0 then
-            "> " ++ toString (negate min)
-        else
-            "< " ++ toString min
-    else
-        formatFloat dps_ value
-
-
-formatFloat : Int -> Float -> String
+formatFloat : Int -> Float -> Result String String
 formatFloat dps value =
-    if isNaN value then
-        "NaN"
-    else if isInfinite value then
-        "Infinity"
+    if dps < 0 then
+        Err "Decimal places cannot be less than 0"
     else
         let
-            dps_ : Int
-            dps_ =
-                max 0 dps
-
-            rounding : Float
-            rounding =
-                0.5 / (toFloat (10 ^ dps_))
-
-            value_ : Float
-            value_ =
-                if value < 0 then
-                    value - rounding
-                else
-                    value + rounding
-
-            -- TODO: Handle E notation, used by toString for very
-            -- small/large floats, e.g. toString 0.0000001 is "1e-7".
-            parts : List String
-            parts =
-                String.split "." (toString value_)
-
-            integer : String
-            integer =
-                List.head parts
-                    |> Maybe.withDefault "0"
-
-            fractional : String
-            fractional =
-                List.tail parts
-                    |> Maybe.andThen List.head
-                    |> Maybe.withDefault ""
+            min : Float
+            min =
+                1.0 / (toFloat (10 ^ dps))
         in
-        if dps > 0 then
-            fractional
-                |> String.left dps_
-                |> String.padRight dps_ '0'
-                |> String.cons '.'
-                |> String.append integer
+        if abs value < min then
+            if value < 0 then
+                Ok ("> " ++ toString (negate min))
+            else
+                Ok ("< " ++ toString min)
         else
-            integer
+            Float.toStringN dps value
 
 
 thousands : Int -> String
@@ -2223,14 +2156,24 @@ percentageOf total value =
         Ok (100 * (toFloat value / toFloat total))
 
 
-asPercentage : Int -> Float -> Result String String
-asPercentage decimals value =
-    if isNaN value then
-        Err "NaN"
-    else if isInfinite value then
-        Err "Infinity"
-    else
-        Ok (dps decimals (100 * value) ++ "%")
+formatPercentage : Int -> Float -> String
+formatPercentage dps percentage =
+    Ok percentage
+        |> formatPercentageFromResult dps
+
+
+formatPercentageOf : Int -> Int -> Int -> String
+formatPercentageOf dps total value =
+    percentageOf total value
+        |> formatPercentageFromResult dps
+
+
+formatPercentageFromResult : Int -> Result String Float -> String
+formatPercentageFromResult dps result =
+    result
+        |> Result.andThen (formatFloat dps)
+        |> Result.map (flip String.append "%")
+        |> Result.withDefault "---"
 
 
 -- Date Helpers

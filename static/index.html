@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Petitions | A viewer for UK Parliament petition data</title>
-<meta name="description" content="A viewer for UK Parliament petition data. Shows petition signatures broken out by country and by UK constituency.">
+<meta name="description" content="Petitions is a web app for viewing UK Parliament petition data. It shows petition signatures broken out by country and by UK constituency.">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="msapplication-config" content="assets/img/browserconfig.xml">
 <meta name="theme-color" content="#ffffff">
@@ -48,12 +48,12 @@
             if (!m) {
                 return;
             }
-    
+
             return decodeURIComponent(m[1]);
         }
 
         // Feature detect localStorage.
-        // See https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API/Using_the_Web_Storage_API 
+        // See https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API/Using_the_Web_Storage_API
         function localStorageAvailable() {
             try {
                 var x = '__storage_test__';

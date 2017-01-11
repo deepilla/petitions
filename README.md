@@ -1,14 +1,14 @@
 # Petitions
 
-Petitions is a viewer for UK Parliament petition data.
+Petitions is a web app for viewing UK Parliament petition data.
 
-The UK's [Parliamentary Petitions](https://petition.parliament.uk/) website is like change.org for political issues affecting the UK. This app shows petition signatures broken out by country and by parliamentary constituency. Try it out [here](http://petitions.deepilla.com).
+The UK's [Parliamentary Petitions](https://petition.parliament.uk/) website is like change.org for political issues affecting the UK. Any UK resident can create a petition and, providing they get enough signatures, have their issue debated in Parliament. This app shows signatures broken out by country and by parliamentary constituency. Try it out [here](http://petitions.deepilla.com).
 
 ## Install/Build
 
 Petitions is made with [Elm](http://elm-lang.org/) and [Sass](http://sass-lang.com/). The easiest way to build it is with the provided [NPM](https://www.npmjs.com/) scripts (also compatible with [Yarn](https://yarnpkg.com/)). But if you don't have NPM/Yarn, it's easy enough to build the project manually.
 
-Start by cloning the repo and then do one of the following:
+Start by cloning/downloading the repo. Then do one of the following:
 
 ### Build With NPM/Yarn (Recommended)
 
@@ -29,13 +29,13 @@ Start by cloning the repo and then do one of the following:
 
 ### Functionality
 
-- Search for petitions
+- Petition search
 - Indicate closed/rejected status in the petition title
-- Indicate totals mismatch on the summary page
-- Indicate government response/parliament discussion on the details page
-- Browser history/titles (via History API and document.title)
+- Indicate totals mismatches on the summary page
+- Indicate government/parliament response status on the details page
+- Browser history and titles (see [Elm's Navigation package](http://package.elm-lang.org/packages/elm-lang/navigation/latest), [History API](https://developer.mozilla.org/en-US/docs/Web/API/History_API), document.title)
 - Transitions between screens
-- Show a "Try again" link when a petition fails to load
+- Provide a "Try again" link if a petition fails to load
 - Handle edge cases sensibly (e.g. no signatures, one signature, all signatures in one country)
 - Warn user if localStorage is unavailable
 - Add remove/clear links to petition lists

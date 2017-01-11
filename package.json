@@ -1,7 +1,7 @@
 {
   "name": "petitions",
   "version": "1.0.0",
-  "description": "A viewer for UK Parliament petition data",
+  "description": "A web app for viewing UK Parliament petition data",
   "devDependencies": {
     "chokidar-cli": "^1.2.0",
     "copyfiles": "^1.0.0",

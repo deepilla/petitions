@@ -3,7 +3,6 @@ module Country exposing
     , isEU
     )
 
-
 import Set exposing (Set)
 
 

@@ -1,6 +1,5 @@
 port module Main exposing (..)
 
-
 import Array exposing (Array)
 import Char
 import Date exposing (Date)
@@ -123,20 +122,22 @@ petitionDecoder =
             Json.map2 (|>)
     in
     Json.succeed Petition
-        |> andMap (Json.at ["links", "self"] Json.string)
-        |> andMap (Json.at ["data", "attributes", "action"] Json.string)
-        |> andMap (Json.map2 (++)
-                    (Json.at ["data", "attributes", "background"] linesDecoder)
-                    (Json.at ["data", "attributes", "additional_details"] linesDecoder)
-                  )
-        |> andMap (Json.at ["data", "attributes", "creator_name"] (Json.nullable Json.string))
-        |> andMap (Json.at ["data", "attributes", "created_at"] dateDecoder)
-        |> andMap ((Json.at ["data", "attributes", "state"] Json.string)
-                    |> Json.andThen petitionStateDecoder
-                  )
-        |> andMap (Json.at ["data", "attributes", "signature_count"] Json.int)
-        |> andMap (Json.at ["data", "attributes", "signatures_by_country"] (Json.list countryDecoder))
-        |> andMap (Json.at ["data", "attributes", "signatures_by_constituency"] (Json.list constituencyDecoder))
+        |> andMap (Json.at [ "links", "self" ] Json.string)
+        |> andMap (Json.at [ "data", "attributes", "action" ] Json.string)
+        |> andMap
+            (Json.map2 (++)
+                (Json.at [ "data", "attributes", "background" ] linesDecoder)
+                (Json.at [ "data", "attributes", "additional_details" ] linesDecoder)
+            )
+        |> andMap (Json.at [ "data", "attributes", "creator_name" ] (Json.nullable Json.string))
+        |> andMap (Json.at [ "data", "attributes", "created_at" ] dateDecoder)
+        |> andMap
+            ((Json.at [ "data", "attributes", "state" ] Json.string)
+                |> Json.andThen petitionStateDecoder
+            )
+        |> andMap (Json.at [ "data", "attributes", "signature_count" ] Json.int)
+        |> andMap (Json.at [ "data", "attributes", "signatures_by_country" ] (Json.list countryDecoder))
+        |> andMap (Json.at [ "data", "attributes", "signatures_by_constituency" ] (Json.list constituencyDecoder))
 
 
 petitionStateDecoder : String -> Json.Decoder PetitionState
@@ -145,9 +146,9 @@ petitionStateDecoder state =
         "open" ->
             Json.succeed Open
         "closed" ->
-            Json.map Closed (Json.at ["data", "attributes", "closed_at"] dateDecoder)
+            Json.map Closed (Json.at [ "data", "attributes", "closed_at" ] dateDecoder)
         "rejected" ->
-            Json.map Rejected (Json.at ["data", "attributes", "rejected_at"] dateDecoder)
+            Json.map Rejected (Json.at [ "data", "attributes", "rejected_at" ] dateDecoder)
         _ ->
             Json.fail ("Unexpected petition state " ++ state)
 
@@ -336,7 +337,7 @@ update msg model =
                     }
 
                 cmd =
-                    setLocalStorage ("recent.petitions", (PetitionList.toJson recent_))
+                    setLocalStorage ("recent.petitions", PetitionList.toJson recent_)
             in
             (,) model_ cmd
 
@@ -521,7 +522,7 @@ updateSavedPetitions petitions model =
             }
 
         cmd =
-            setLocalStorage ("saved.petitions", (PetitionList.toJson petitions))
+            setLocalStorage ("saved.petitions", PetitionList.toJson petitions)
     in
     (,) model_ cmd
 
@@ -569,11 +570,11 @@ fetchRandomUrls =
     let
         url : String
         url =
-            urlWithParams [("state", "open")]
+            urlWithParams [ ("state", "open") ]
 
         decoder : Json.Decoder (Array String)
         decoder =
-            Json.field "data" (Json.array (Json.at ["links", "self"] Json.string))
+            Json.field "data" (Json.array (Json.at [ "links", "self" ] Json.string))
     in
     fetch OnRandomUrlsLoaded decoder url
 
@@ -914,7 +915,8 @@ renderLoadingPage : Html Msg
 renderLoadingPage =
     let
         imageSize : Int
-        imageSize = 80
+        imageSize =
+            80
     in
     Html.div
         [ Attributes.class "pg-loading" ]
@@ -1197,59 +1199,56 @@ renderPetitionCountries opts petition =
 
         headers : List Header
         headers =
-            [
-                { text = "Country"
-                , title = Just "Sort by Country"
-                , align = Nothing
-                , action = Just (SortCountryData SortByCountry)
-                , icon = Just (iconClass SortByCountry)
-                }
-            ,   { text = "Signatures"
-                , title = Just "Sort by Signatures"
-                , align = Just Center
-                , action = Just (SortCountryData SortBySignatures)
-                , icon = Just (iconClass SortBySignatures)
-                }
-            ,   { text = "Signatures (%)"
-                , title = Nothing
-                , align = Just Center
-                , action = Nothing
-                , icon = Nothing
-                }
+            [ { text = "Country"
+              , title = Just "Sort by Country"
+              , align = Nothing
+              , action = Just (SortCountryData SortByCountry)
+              , icon = Just (iconClass SortByCountry)
+              }
+            , { text = "Signatures"
+              , title = Just "Sort by Signatures"
+              , align = Just Center
+              , action = Just (SortCountryData SortBySignatures)
+              , icon = Just (iconClass SortBySignatures)
+              }
+            , { text = "Signatures (%)"
+              , title = Nothing
+              , align = Just Center
+              , action = Nothing
+              , icon = Nothing
+              }
             ]
 
         body : List (Cell Country)
         body =
-            [
-                { value = .name
-                , title = Nothing
-                , align = Nothing
-                }
-            ,   { value = .signatures >> thousands
-                , title = Nothing
-                , align = Just Center
-                }
-            ,   { value = .signatures >> formatPercentageOf 1 total
-                , title = Just (.signatures >> formatPercentageOf 4 total)
-                , align = Just Center
-                }
+            [ { value = .name
+              , title = Nothing
+              , align = Nothing
+              }
+            , { value = .signatures >> thousands
+              , title = Nothing
+              , align = Just Center
+              }
+            , { value = .signatures >> formatPercentageOf 1 total
+              , title = Just (.signatures >> formatPercentageOf 4 total)
+              , align = Just Center
+              }
             ]
 
         totalRow : String -> Int -> List (Cell (List a))
         totalRow label amount =
-            [
-                { value = always label
-                , title = Nothing
-                , align = Nothing
-                }
-            ,   { value = always (thousands amount)
-                , title = Nothing
-                , align = Just Center
-                }
-            ,   { value = always ""
-                , title = Nothing
-                , align = Nothing
-                }
+            [ { value = always label
+              , title = Nothing
+              , align = Nothing
+              }
+            , { value = always (thousands amount)
+              , title = Nothing
+              , align = Just Center
+              }
+            , { value = always ""
+              , title = Nothing
+              , align = Nothing
+              }
             ]
 
         totals : List (List (Cell (List Country)))
@@ -1316,93 +1315,91 @@ renderPetitionConstituencies opts petition =
             constituency.name
                 ++ ": MP "
                 ++ (constituency.mp
-                    |> Maybe.withDefault "Unknown")
+                        |> Maybe.withDefault "Unknown"
+                   )
                 ++ ", Electorate "
                 ++ (thousands (constituency.info.electorate))
 
         headers : List Header
         headers =
-            [
-                { text = "Constituency"
-                , title = Just "Sort by Constituency"
-                , align = Nothing
-                , action = Just (SortConstituencyData SortByConstituency)
-                , icon = Just (iconClass SortByConstituency)
-                }
-            ,   { text = "Country"
-                , title = Just "Sort by Country"
-                , align = Nothing
-                , action = Just (SortConstituencyData SortByCountry)
-                , icon = Just (iconClass SortByCountry)
-                }
-            ,   { text = "Region"
-                , title = Nothing
-                , align = Nothing
-                , action = Nothing
-                , icon = Nothing
-                }
-            ,   { text = "Signatures"
-                , title = Just "Sort by Signatures"
-                , align = Just Center
-                , action = Just (SortConstituencyData SortBySignatures)
-                , icon = Just (iconClass SortBySignatures)
-                }
-            ,   { text = "Signatures (%)"
-                , title = Nothing
-                , align = Just Center
-                , action = Nothing
-                , icon = Nothing
-                }
+            [ { text = "Constituency"
+              , title = Just "Sort by Constituency"
+              , align = Nothing
+              , action = Just (SortConstituencyData SortByConstituency)
+              , icon = Just (iconClass SortByConstituency)
+              }
+            , { text = "Country"
+              , title = Just "Sort by Country"
+              , align = Nothing
+              , action = Just (SortConstituencyData SortByCountry)
+              , icon = Just (iconClass SortByCountry)
+              }
+            , { text = "Region"
+              , title = Nothing
+              , align = Nothing
+              , action = Nothing
+              , icon = Nothing
+              }
+            , { text = "Signatures"
+              , title = Just "Sort by Signatures"
+              , align = Just Center
+              , action = Just (SortConstituencyData SortBySignatures)
+              , icon = Just (iconClass SortBySignatures)
+              }
+            , { text = "Signatures (%)"
+              , title = Nothing
+              , align = Just Center
+              , action = Nothing
+              , icon = Nothing
+              }
             ]
 
         body : List (Cell Constituency)
         body =
-            [
-                { value = .name
-                , title = Just title
-                , align = Nothing
-                }
-            ,   { value = getConstituencyCountry
-                , title = Nothing
-                , align = Nothing
-                }
-            ,   { value = getConstituencyRegion >> Maybe.withDefault ""
-                , title = Nothing
-                , align = Nothing
-                }
-            ,   { value = .signatures >> thousands
-                , title = Nothing
-                , align = Just Center
-                }
-            ,   { value = .signatures >> formatPercentageOf 1 total
-                , title = Just (.signatures >> formatPercentageOf 4 total)
-                , align = Just Center
-                }
+            [ { value = .name
+              , title = Just title
+              , align = Nothing
+              }
+            , { value = getConstituencyCountry
+              , title = Nothing
+              , align = Nothing
+              }
+            , { value = getConstituencyRegion >> Maybe.withDefault ""
+              , title = Nothing
+              , align = Nothing
+              }
+            , { value = .signatures >> thousands
+              , title = Nothing
+              , align = Just Center
+              }
+            , { value = .signatures >> formatPercentageOf 1 total
+              , title = Just (.signatures >> formatPercentageOf 4 total)
+              , align = Just Center
+              }
             ]
 
         totalRow : String -> Int -> List (Cell (List a))
         totalRow label amount =
-            [
-                { value = always label
-                , title = Nothing
-                , align = Nothing
-                }
-            ,   { value = always ""
-                , title = Nothing
-                , align = Nothing
-                }
-            ,   { value = always ""
-                , title = Nothing
-                , align = Nothing
-                }
-            ,   { value = always (thousands amount)
-                , title = Nothing
-                , align = Just Center
-                }
-            ,   { value = always ""
-                , title = Nothing
-                , align = Nothing
-                }
+            [ { value = always label
+              , title = Nothing
+              , align = Nothing
+              }
+            , { value = always ""
+              , title = Nothing
+              , align = Nothing
+              }
+            , { value = always ""
+              , title = Nothing
+              , align = Nothing
+              }
+            , { value = always (thousands amount)
+              , title = Nothing
+              , align = Just Center
+              }
+            , { value = always ""
+              , title = Nothing
+              , align = Nothing
+              }
             ]
 
         totals : List (List (Cell (List Constituency)))
@@ -1600,7 +1597,7 @@ renderTopCountries limit countryFilter countries =
                     (List.map ((==) countryFilter) radioValues)
                 )
             ]
-            , renderBarChart barLabels barValues
+        , renderBarChart barLabels barValues
         ]
 
 
@@ -1608,12 +1605,13 @@ renderRegions : GroupBy -> List Constituency -> Html Msg
 renderRegions groupBy constituencies =
     let
         key : (Constituency -> String)
-        key  =
+        key =
             case groupBy of
                 GroupByCountry ->
                     getConstituencyCountry
                 GroupByRegion ->
-                    \x -> getConstituencyRegion x
+                    \x ->
+                        getConstituencyRegion x
                             |> Maybe.withDefault (getConstituencyCountry x)
 
         -- (barLabels, barValues) : (List String, List Int)
@@ -1677,11 +1675,11 @@ renderBarChart labels values =
                 percent =
                     Result.withDefault 0 (percentageOf max value)
 
-                width: String
+                width : String
                 width =
                     toString percent ++ "%"
 
-                indent: String
+                indent : String
                 indent =
                     toString (percent + 1.0) ++ "%"
             in
@@ -1704,7 +1702,8 @@ renderBarChart labels values =
                 ]
     in
     Html.table
-        [ Attributes.class "bar" ] (List.map2 tr labels values)
+        [ Attributes.class "bar" ]
+        (List.map2 tr labels values)
 
 
 renderRadioGroup : String -> List String -> List Msg -> List Bool -> List (Html Msg)
@@ -1780,7 +1779,7 @@ alignAttribute align =
                 Center ->
                     "center"
     in
-    Attributes.style [("text-align", value)]
+    Attributes.style [ ("text-align", value) ]
 
 
 th : Header -> Html Msg
@@ -1873,76 +1872,73 @@ navigationLinks currentView =
             else
                 Nothing
     in
-    [
-        { text = "Summary"
-        , action = SetView Summary
-        , title = Just "View a summary of this petition's signatures"
-        , icon = Just "icon-view-summary"
-        , class = selectedClass Summary
-        }
-    ,   { text = "Details"
-        , action = SetView Detail
-        , title = Just "View the details of this petition"
-        , icon = Just "icon-view-details"
-        , class = selectedClass Detail
-        }
-    ,   { text = "Countries"
-        , action = SetView CountryData
-        , title = Just "View signatures by country"
-        , icon = Just "icon-view-countries"
-        , class = selectedClass CountryData
-        }
-    ,   { text = "Constituencies"
-        , action = SetView ConstituencyData
-        , title = Just "View UK signatures by constituency"
-        , icon = Just "icon-view-constituencies"
-        , class = selectedClass ConstituencyData
-        }
+    [ { text = "Summary"
+      , action = SetView Summary
+      , title = Just "View a summary of this petition's signatures"
+      , icon = Just "icon-view-summary"
+      , class = selectedClass Summary
+      }
+    , { text = "Details"
+      , action = SetView Detail
+      , title = Just "View the details of this petition"
+      , icon = Just "icon-view-details"
+      , class = selectedClass Detail
+      }
+    , { text = "Countries"
+      , action = SetView CountryData
+      , title = Just "View signatures by country"
+      , icon = Just "icon-view-countries"
+      , class = selectedClass CountryData
+      }
+    , { text = "Constituencies"
+      , action = SetView ConstituencyData
+      , title = Just "View UK signatures by constituency"
+      , icon = Just "icon-view-constituencies"
+      , class = selectedClass ConstituencyData
+      }
     ]
 
 
 petitionLinks : PetitionList.Item -> Bool -> List Link
 petitionLinks item isSaved =
-    [
-        { text = "Refresh"
-        , action = LoadPetition True item.url
-        , title = Just "Reload data for this petition"
+    [ { text = "Refresh"
+      , action = LoadPetition True item.url
+      , title = Just "Reload data for this petition"
+      , icon = Nothing
+      , class = Nothing
+      }
+    , (if isSaved then
+        { text = "Unsave"
+        , action = UnsavePetition item
+        , title = Just "Remove this petition from My Petitions"
         , icon = Nothing
         , class = Nothing
         }
-    ,   (if isSaved then
-            { text = "Unsave"
-            , action = UnsavePetition item
-            , title = Just "Remove this petition from My Petitions"
-            , icon = Nothing
-            , class = Nothing
-            }
-        else
-            { text = "Save"
-            , action = SavePetition item
-            , title = Just "Add this petition to My Petitions"
-            , icon = Nothing
-            , class = Nothing
-            }
-        )
+       else
+        { text = "Save"
+        , action = SavePetition item
+        , title = Just "Add this petition to My Petitions"
+        , icon = Nothing
+        , class = Nothing
+        }
+      )
     ]
 
 
 defaultLinks : List Link
 defaultLinks =
-    [
-        { text = "My Petitions"
-        , action = SetModal MyPetitions
-        , title = Just "Saved and recently viewed petitions"
-        , icon = Nothing
-        , class = Nothing
-        }
-    ,   { text = "FAQ"
-        , action = SetModal FAQ
-        , title = Just "Frequently asked questions"
-        , icon = Nothing
-        , class = Nothing
-        }
+    [ { text = "My Petitions"
+      , action = SetModal MyPetitions
+      , title = Just "Saved and recently viewed petitions"
+      , icon = Nothing
+      , class = Nothing
+      }
+    , { text = "FAQ"
+      , action = SetModal FAQ
+      , title = Just "Frequently asked questions"
+      , icon = Nothing
+      , class = Nothing
+      }
     ]
 
 
@@ -2241,7 +2237,7 @@ formatDate date =
 
 capitalise : String -> String
 capitalise string =
-    case (String.uncons string) of
+    case String.uncons string of
         Just (first, rest) ->
             String.cons (Char.toUpper first) rest
         Nothing ->
@@ -2250,7 +2246,10 @@ capitalise string =
 
 pluralise : String -> String -> Int -> String
 pluralise singular plural count =
-    if count == 1 then singular else plural
+    if count == 1 then
+        singular
+    else
+        plural
 
 
 withSuffix : String -> String -> String
@@ -2276,10 +2275,12 @@ chunk head tail string chunks =
     else
         let
             next : String
-            next = head string
+            next =
+                head string
 
             rest : String
-            rest = tail string
+            rest =
+                tail string
         in
         chunk head tail rest (next :: chunks)
 
@@ -2387,7 +2388,7 @@ pluraliseSignatures =
 
 
 totalSignatures : List { a | signatures : Int } -> Int
-totalSignatures items  =
+totalSignatures items =
     List.foldl (\item total -> total + item.signatures) 0 items
 
 
@@ -2443,7 +2444,7 @@ withoutJsonExtension =
 -- See https://groups.google.com/forum/#!topic/elm-discuss/XaIr96e8qXk
 -- and https://github.com/elm-lang/http/pull/15
 queryPair : (String, String) -> String
-queryPair (key,value) =
+queryPair (key, value) =
     queryEscape key ++ "=" ++ queryEscape value
 
 

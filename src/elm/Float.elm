@@ -3,7 +3,6 @@ module Float exposing
     , toStringN
     )
 
-
 import String
 
 

@@ -8,7 +8,6 @@ module PetitionList exposing
     , toJson
     )
 
-
 import Json.Decode
 import Json.Encode
 
@@ -19,7 +18,8 @@ type alias Item =
     }
 
 
-type alias PetitionList = List Item
+type alias PetitionList =
+    List Item
 
 
 -- TODO: This should be configurable by the caller.

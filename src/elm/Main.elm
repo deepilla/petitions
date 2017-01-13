@@ -46,7 +46,7 @@ type MenuState
 
 
 type PetitionState
-    = Open
+    = Open Date
     | Closed Date
     | Rejected Date
 
@@ -144,7 +144,7 @@ petitionStateDecoder : String -> Json.Decoder PetitionState
 petitionStateDecoder state =
     case String.toLower (String.trim state) of
         "open" ->
-            Json.succeed Open
+            Json.map Open (Json.at [ "data", "attributes", "open_at" ] dateDecoder)
         "closed" ->
             Json.map Closed (Json.at [ "data", "attributes", "closed_at" ] dateDecoder)
         "rejected" ->
@@ -1112,25 +1112,23 @@ renderPetitionDetail petition =
         p text =
             Html.p [] [ Html.text text ]
 
-        formatPetitionState : PetitionState -> String
-        formatPetitionState state =
-            case state of
-                Open ->
-                    "Open"
-                Closed _ ->
-                    "Closed"
-                Rejected _ ->
-                    "Rejected"
-
-        formatPetitionStateTitle : PetitionState -> String
-        formatPetitionStateTitle state =
-            case state of
-                Open ->
-                    ""
+        -- (status, title) : (String, String)
+        (status, title) =
+            case petition.state of
+                Open pubdate ->
+                    let
+                        deadline : String
+                        deadline =
+                            pubdate
+                                |> toYearMonthDay
+                                |> shiftMonth 6
+                                |> formatYearMonthDay
+                    in
+                    ("Open", "This petition ends on " ++ deadline)
                 Closed date ->
-                    "This petition ended on " ++ formatDate date
+                    ("Closed", "This petition ended on " ++ formatDate date)
                 Rejected date ->
-                    "This petition was rejected on " ++ formatDate date
+                    ("Rejected", "This petition was rejected on " ++ formatDate date)
     in
     [ Html.div
         [ Attributes.class "petition-details" ]
@@ -1160,8 +1158,8 @@ renderPetitionDetail petition =
             , Html.dt []
                 [ Html.text "Status" ]
             , Html.dd
-                [ Attributes.title (formatPetitionStateTitle petition.state) ]
-                [ Html.text (formatPetitionState petition.state) ]
+                [ Attributes.title title ]
+                [ Html.text status ]
             ]
         ]
     ]
@@ -2175,6 +2173,13 @@ formatPercentageFromResult dps result =
 -- Date Helpers
 
 
+type alias YearMonthDay =
+    { year : Int
+    , month : Date.Month
+    , day : Int
+    }
+
+
 dayToString : Date.Day -> String
 dayToString day =
     case day of
@@ -2225,11 +2230,179 @@ monthToString month =
 
 formatDate : Date -> String
 formatDate date =
-    monthToString (Date.month date)
+    formatYearMonthDay (toYearMonthDay date)
+
+
+toYearMonthDay : Date -> YearMonthDay
+toYearMonthDay date =
+    { year = Date.year date
+    , month = Date.month date
+    , day = Date.day date
+    }
+
+
+formatYearMonthDay : YearMonthDay -> String
+formatYearMonthDay ymd =
+    monthToString ymd.month
         ++ " "
-        ++ toOrdinal (Date.day date)
+        ++ toOrdinal ymd.day
         ++ ", "
-        ++ toString (Date.year date)
+        ++ toString ymd.year
+
+
+shiftMonth : Int -> YearMonthDay -> YearMonthDay
+shiftMonth count ymd =
+    if count > 0 then
+        incrMonth count ymd
+    else if count < 0 then
+        decrMonth (negate count) ymd
+    else
+        ymd
+
+
+incrMonth : Int -> YearMonthDay -> YearMonthDay
+incrMonth times ymd =
+    if times == 0 then
+        adjustDay ymd
+    else
+        let
+            year : Int
+            year =
+                case ymd.month of
+                    Date.Dec ->
+                        ymd.year + 1
+                    _ ->
+                        ymd.year
+
+            month : Date.Month
+            month =
+                case ymd.month of
+                    Date.Jan ->
+                        Date.Feb
+                    Date.Feb ->
+                        Date.Mar
+                    Date.Mar ->
+                        Date.Apr
+                    Date.Apr ->
+                        Date.May
+                    Date.May ->
+                        Date.Jun
+                    Date.Jun ->
+                        Date.Jul
+                    Date.Jul ->
+                        Date.Aug
+                    Date.Aug ->
+                        Date.Sep
+                    Date.Sep ->
+                        Date.Oct
+                    Date.Oct ->
+                        Date.Nov
+                    Date.Nov ->
+                        Date.Dec
+                    Date.Dec ->
+                        Date.Jan
+        in
+        incrMonth
+            (times - 1)
+            { ymd
+                | year = year
+                , month = month
+            }
+
+
+decrMonth : Int -> YearMonthDay -> YearMonthDay
+decrMonth times ymd =
+    if times == 0 then
+        adjustDay ymd
+    else
+        let
+            year : Int
+            year =
+                case ymd.month of
+                    Date.Jan ->
+                        ymd.year - 1
+                    _ ->
+                        ymd.year
+
+            month : Date.Month
+            month =
+                case ymd.month of
+                    Date.Jan ->
+                        Date.Dec
+                    Date.Feb ->
+                        Date.Jan
+                    Date.Mar ->
+                        Date.Feb
+                    Date.Apr ->
+                        Date.Mar
+                    Date.May ->
+                        Date.Apr
+                    Date.Jun ->
+                        Date.May
+                    Date.Jul ->
+                        Date.Jun
+                    Date.Aug ->
+                        Date.Jul
+                    Date.Sep ->
+                        Date.Aug
+                    Date.Oct ->
+                        Date.Sep
+                    Date.Nov ->
+                        Date.Oct
+                    Date.Dec ->
+                        Date.Nov
+        in
+        decrMonth
+            (times - 1)
+            { ymd
+                | year = year
+                , month = month
+            }
+
+
+adjustDay : YearMonthDay -> YearMonthDay
+adjustDay ymd =
+    { ymd
+        | day = min ymd.day (daysInMonth ymd.month ymd.year)
+    }
+
+
+daysInMonth : Date.Month -> Int -> Int
+daysInMonth month year =
+    case month of
+        Date.Jan ->
+            31
+        Date.Feb ->
+            if isLeapYear year then
+                29
+            else
+                28
+        Date.Mar ->
+            31
+        Date.Apr ->
+            30
+        Date.May ->
+            31
+        Date.Jun ->
+            30
+        Date.Jul ->
+            31
+        Date.Aug ->
+            31
+        Date.Sep ->
+            30
+        Date.Oct ->
+            31
+        Date.Nov ->
+            30
+        Date.Dec ->
+            31
+
+
+isLeapYear : Int -> Bool
+isLeapYear year =
+    rem year 4 == 0
+        && (rem year 100 /= 0 || rem year 400 == 0)
 
 
 -- String Helpers

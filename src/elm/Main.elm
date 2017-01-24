@@ -101,7 +101,8 @@ constituencyItemDecoder code =
 
 
 type alias Petition =
-    { url : String
+    { id : Int
+    , url : String
     , title : String
     , description : List String
     -- Creator is null for closed/rejected petitions.
@@ -122,6 +123,7 @@ petitionDecoder =
             Json.map2 (|>)
     in
     Json.succeed Petition
+        |> andMap (Json.at [ "data", "id" ] Json.int)
         |> andMap (Json.at [ "links", "self" ] Json.string)
         |> andMap (Json.at [ "data", "attributes", "action" ] Json.string)
         |> andMap
